@@ -471,7 +471,8 @@ artifact(返图×12) ──▶ episode(recap)  ──▶ facet 增量更新
 | **Coze Studio** | ⚠️ 不作基底 | Apache-2.0、Go + React、字节自家（讲故事有加分）。但它是**给人搭 Agent 的平台**，不是搭社交产品的框架 —— 把社交业务塞进它的 DDD 微服务里是负担不是加速。**建议：只在需要"让运营同学可视化配 Agent prompt/workflow"时，作为旁挂的配置面接入** |
 | **CloudWeGo Eino** | ⚠️ 备选 | 字节的 Go 版 LangGraph，Doubao/TikTok 在用。如果团队是 Go 栈就选它。**但单语言 TS 全栈对小团队更快**，别为了生态对齐付语言分裂的代价 |
 | **Mobilizon / Gathio** | ❌ | 开源 Meetup 替代品，但它们的模型是"公开活动 + RSVP"，没有匹配、没有记忆、没有 Agent。我们的 Pool 语义远超它们，借鉴不了 |
-| **A2A 协议**（Linux Foundation） | ⏸ 暂缓 | 跨组织 agent 互通的协议。我们内部两个 agent 在同进程里交换结构化对象就够了。等到要和多闪/抖音的 AI 分身互通时再上 |
+| **A2A 协议**（Linux Foundation） | ⏸ 暂缓，但预留接口 | 见 §7.6 —— 它解决的是**跨组织** agent 互操作，我们的预演是**同进程**两个自家 agent。判据只有一条：通信双方是否由同一团队部署 |
+| **AG2 / CAMEL** | △ 抄形状，不装依赖 | 见 §7.6 |
 | **自建 IM** | ❌❌ | 红线。起步 Supabase Realtime，规模化 OpenIM |
 
 ### 7.4 我们必须自己写的三层（约占总代码 15%）
@@ -482,7 +483,40 @@ artifact(返图×12) ──▶ episode(recap)  ──▶ facet 增量更新
 
 这三层没有开源，也不该有 —— **它们就是产品本身**。其余一律组装。
 
-### 7.5 目标仓库结构
+### 7.5 关于 A2A 与多智能体框架：抄形状，不装依赖
+
+「我们这个算 A2A，是不是该直接拿个 A2A 项目做基底改？」—— 这里有个概念混淆，拆开就清楚了。
+
+**两个「A2A」是不同的东西：**
+
+| | A2A 协议（Linux Foundation） | 我们的「A2A 预演」 |
+|---|---|---|
+| 解决什么 | **不同组织、不同框架**的 agent 如何互相发现、协商能力、交换任务 | 两个**自家** agent 生成一张提案卡 |
+| 机制 | well-known 路径的 Agent Card；task 生命周期 `submitted→working→completed/failed/canceled/rejected` + `input-required`/`auth-required` 中断态；JSON-RPC over HTTP | 同进程两个对象交换结构化消息，≤6 轮 |
+| 部署边界 | 跨组织 | 同一个进程 |
+
+**判据只有一条：通信双方是否由同一个团队部署。** 现在双方都是我们 —— 为了让同进程两个对象说话而起 HTTP server、发 Agent Card、实现 task 状态机，是纯粹的 accidental complexity。
+
+它变得值钱的两个具体触发条件：① 真要和多闪「崽崽」/ 抖音 AI 分身互通；② 我们要开放第三方校园服务 agent 入驻（社团官方 agent、场地预约 agent）。**在此之前不实现，但零成本预留** —— 把预演消息定义成 `RehearsalMessage` schema 时，字段刻意对齐 A2A 的 `Message` / `Part` 结构。将来要开放，包一层 adapter 即可，不用重构。花 0 成本买一个期权。
+
+**真正对口的原语不是 A2A，是「多智能体对话编排 + 发言权选择」：**
+
+| 候选 | 它给什么 | 对应我们哪一段 |
+|---|---|---|
+| **AG2**（原 AutoGen）`GroupChat` + `GroupChatManager` | 多 agent 共享会话，selector 决定下一个谁说；支持 `auto`/`manual`/`random`/`round_robin` 与**自定义 speaker selection 函数** | §5.⑤ 群聊 Agent 介入策略 |
+| **CAMEL** role-playing | task specifier + AI User + AI Assistant 三角，两 agent 自主对话完成任务 | §5.③ 工作组会晤 |
+
+**结论：抄接口形状，不引入依赖。** 三条理由：
+
+1. **语言分裂的代价。** 两者都是 Python 重框架，主链路是 TS。我们已经为 Graphiti 付过一次 Python 的税 —— 那次值得，因为 Leiden 社群发现和 bi-temporal 消解我们造不出来。300 行的对话编排不值得付第二次。
+2. **我们的约束比框架强。** AG2 的 GroupChat 是开放式多轮；我们的预演是封闭式：≤6 轮、必须产出固定 schema（3 话题 + 1 提案 + 1 风险）、Agent 不得承诺。用 `generateObject` + zod 把 schema 钉死，比在开放框架里往回加约束更可靠。
+3. **★ 语义是反的。** AG2 的 selector 解决「选谁说」，默认假设总得有人说话；我们的策略 **90% 的时间输出 `SILENT`**，核心问题是「要不要说」。硬套框架等于一路跟它对着干。
+
+具体照抄的两处：AG2 的 `speaker_selection_method` 可插拔接口形状 → 我们的 `InterventionPolicy` 接口（多一个 `SILENT` 出口）；CAMEL 的 task-specifier / role-play 三角 → 我们的预演 prompt 结构。
+
+**顺带回答「基底该按什么维度选」：** 不该按 A2A 这个维度选。基底应该压在**承载最多不可复用工作量的那一层** —— 那是应用底座（Supabase：认证、实时、存储、RLS）+ 前端壳（聊天 UI 与流式渲染）。这些耗人天且零产品差异化。**Agent 编排恰恰是最不该用别人框架的一层，因为它就是产品本身。**
+
+### 7.6 目标仓库结构
 
 ```
 social-beta/
