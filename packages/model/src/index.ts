@@ -29,7 +29,14 @@ class DefaultModelGateway implements ModelGateway {
 
   async generate<T>(req: GenerateRequest<T>): Promise<T> {
     const retries = req.retries ?? 2
-    const system = `${req.system}\n\n只输出一个 JSON 对象，不要代码块围栏，不要任何解释文字。`
+    // 把 schema 本身喂给模型，而不是指望调用方在 prompt 里用中文把形状重描一遍。
+    // 实测：只在散文里写「domain 只能取以下之一」时，便宜档模型会返回「户外爬山」
+    // 这种自由文本；给了 JSON Schema 之后枚举才被真正遵守。
+    // 让形状只有一处定义（zod），prompt 从它派生 —— 否则两处描述必然漂移。
+    const system =
+      `${req.system}\n\n输出必须严格符合以下 JSON Schema：\n` +
+      `${JSON.stringify(describeSchema(req.schema))}\n\n` +
+      `只输出一个 JSON 对象，不要代码块围栏，不要任何解释文字。`
     let lastIssue = ''
 
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -77,6 +84,21 @@ class DefaultModelGateway implements ModelGateway {
   async image(req: ImageRequest): Promise<ImageResult> {
     const payload = { prompt: req.prompt, refs: req.referenceImages ?? [], size: req.size }
     return this.cassette.wrap(req.task, payload, () => this.ark.image(req))
+  }
+}
+
+/**
+ * 把 zod schema 转成可放进 prompt 的 JSON Schema。
+ *
+ * 少数 schema（含 refine 之类的运行时校验）无法完整表达，转换会抛错。
+ * 那种情况下退回只给字段名 —— 有部分约束好过没有，且不该因为
+ * 描述不出来就让整个调用失败。
+ */
+function describeSchema(schema: z.ZodType<unknown>): unknown {
+  try {
+    return z.toJSONSchema(schema, { io: 'output', unrepresentable: 'any' })
+  } catch {
+    return { type: 'object', description: '无法完整表达的 schema，请严格按上文字段要求输出' }
   }
 }
 

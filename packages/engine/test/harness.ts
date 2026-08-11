@@ -53,7 +53,7 @@ export async function createTestContext(): Promise<TestContext> {
     cassette: {
       // CI 默认 replay：缺条目直接抛错，绝不偷偷联网
       mode: (process.env['MODEL_CASSETTE_MODE'] as 'record' | 'replay' | 'live') ?? 'replay',
-      dir: process.env['MODEL_CASSETTE_DIR'] ?? 'test/cassettes',
+      dir: process.env['MODEL_CASSETTE_DIR'] ?? 'packages/engine/test/cassettes',
     },
   })
 

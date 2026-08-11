@@ -1,5 +1,13 @@
 import { asPerson, type Sql } from '@pool/db'
 import type { ModelGateway } from '@pool/model'
+import type { Domain } from '@pool/shared'
+import {
+  listBoard,
+  listMyIntents,
+  publishIntent,
+  type BoardItem,
+  type IntentRecord,
+} from './intent-service.js'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -108,6 +116,37 @@ export class PoolEngine {
         order by coalesce(p.occurred_at, p.created_at) desc
       `
     })
+  }
+
+  // ==========================================================
+  // 意图
+  // ==========================================================
+
+  /**
+   * 发布一条意图。用户说一句人话即可，不填表。
+   *
+   * 注意这里先取 person 再进事务：抽取与向量化要打两次模型，
+   * 把它们放在事务里会让连接被长时间占住，而它们本来也不需要事务保护。
+   */
+  async publishIntent(actor: ActorContext, rawText: string): Promise<IntentRecord> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档，无法发布意图')
+    return publishIntent({ sql: this.deps.sql, model: this.deps.model }, me.id, me.campusId, rawText)
+  }
+
+  /**
+   * 意图广场。可见性完全由 RLS 决定，这里不再写一遍过滤条件 ——
+   * 两套规则迟早不一致，届时以哪套为准会变成没人答得上来的问题。
+   */
+  async board(actor: ActorContext, opts: { domain?: Domain; limit?: number } = {}): Promise<BoardItem[]> {
+    return this.act(actor, (tx) => listBoard(tx, opts))
+  }
+
+  /** 我发过的意图，含已过期的 —— 用户要看得到自己发过什么。 */
+  async myIntents(actor: ActorContext): Promise<BoardItem[]> {
+    const me = await this.currentPerson(actor)
+    if (!me) return []
+    return this.act(actor, (tx) => listMyIntents(tx, me.id))
   }
 
   /** 连接健康检查。用于启动自检与测试 harness。 */
