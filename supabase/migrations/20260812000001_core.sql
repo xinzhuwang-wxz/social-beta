@@ -167,17 +167,38 @@ alter table artifact       enable row level security;
 alter table responsiveness enable row level security;
 alter table block          enable row level security;
 
+-- 策略辅助函数必须是 SECURITY DEFINER。
+--
+-- 否则会无限递归：person 的策略里查 person，membership 的策略里查 membership，
+-- 策略求值又触发策略。SECURITY DEFINER 让这几个查询以属主身份执行、绕过 RLS，
+-- 从而打断这个环。search_path 固定为 public，防止被调用方的 search_path 劫持。
+
 -- 当前登录者对应的 person.id
 create or replace function current_person_id() returns uuid
-language sql stable as $$
+language sql stable security definer set search_path = public as $$
   select id from person where auth_user_id = auth.uid()
+$$;
+
+-- 当前登录者所属校区
+create or replace function current_campus_id() returns text
+language sql stable security definer set search_path = public as $$
+  select campus_id from person where auth_user_id = auth.uid()
+$$;
+
+-- 当前登录者是否为某池塘的在册成员
+create or replace function is_pool_member(target_pool uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from membership m
+    where m.pool_id = target_pool
+      and m.person_id = current_person_id()
+      and m.left_at is null
+  )
 $$;
 
 -- 同校区可见，跨校区不可见
 create policy person_read_same_campus on person for select
-  using (
-    campus_id = (select campus_id from person p where p.auth_user_id = auth.uid())
-  );
+  using (campus_id = current_campus_id());
 
 create policy person_write_self on person for update
   using (auth_user_id = auth.uid());
@@ -185,45 +206,47 @@ create policy person_write_self on person for update
 -- 池塘：成员可读；未成行的意图池同校区可见（意图广场靠这条）
 create policy pool_read on pool for select
   using (
-    exists (
-      select 1 from membership m
-      where m.pool_id = pool.id and m.person_id = current_person_id()
-    )
-    or (
-      kind = 'intent'
-      and state in ('open','matching')
-      and campus_id = (select campus_id from person p where p.auth_user_id = auth.uid())
-    )
+    is_pool_member(id)
+    or (kind = 'intent' and state in ('open','matching') and campus_id = current_campus_id())
   );
 
 create policy membership_read on membership for select
-  using (
-    person_id = current_person_id()
-    or exists (
-      select 1 from membership m
-      where m.pool_id = membership.pool_id and m.person_id = current_person_id()
-    )
-  );
+  using (person_id = current_person_id() or is_pool_member(pool_id));
 
 -- 池塘内容仅成员可读。非成员读不到任何一条消息或回流物。
 create policy episode_read_members on episode for select
-  using (
-    exists (
-      select 1 from membership m
-      where m.pool_id = episode.pool_id and m.person_id = current_person_id()
-    )
-  );
+  using (is_pool_member(pool_id));
 
 create policy artifact_read_members on artifact for select
-  using (
-    exists (
-      select 1 from membership m
-      where m.pool_id = artifact.pool_id and m.person_id = current_person_id()
-    )
-  );
+  using (is_pool_member(pool_id));
 
 create policy responsiveness_read_self on responsiveness for select
   using (person_id = current_person_id());
 
 create policy block_own on block for all
   using (blocker_id = current_person_id());
+
+-- ============================================================
+-- 表级授权
+-- ============================================================
+-- RLS 只决定「哪些行可见」，GRANT 决定「这张表能不能碰」。两者都要，缺一不可：
+-- 没有 GRANT，策略再对也是 permission denied；没有策略，GRANT 就是全表放开。
+--
+-- 按最小权限逐表授予，不用 `grant all on all tables`：
+-- 那样将来新增一张本不该让用户直接写的表时，它会被静默地一起放开。
+grant usage on schema public to anon, authenticated;
+
+grant select, update           on person         to authenticated;
+grant select                   on pool           to authenticated;
+grant select                   on membership     to authenticated;
+grant select                   on episode        to authenticated;
+grant select                   on artifact       to authenticated;
+grant select                   on responsiveness to authenticated;
+grant select, insert, delete   on block          to authenticated;
+
+-- 池塘、成员、事件、回流物的写入一律经 PoolEngine 的系统通道，
+-- 因为它们伴随状态机校验与事件流写入 —— 让客户端直接 insert 会绕过这些不变量。
+
+grant execute on function current_person_id()      to authenticated;
+grant execute on function current_campus_id()      to authenticated;
+grant execute on function is_pool_member(uuid)     to authenticated;

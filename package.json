@@ -19,6 +19,7 @@
     "prd:sync": "node scripts/sync-prd.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.7"
   }
 }

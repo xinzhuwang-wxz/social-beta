@@ -14,11 +14,12 @@
       "acceptanceCriteria": [
         "`pnpm dev` 同时起本地 Supabase 与 Next.js，可用真实身份登录并写入 `person`",
         "`PoolEngine` 门面建立；抽查任一 route handler，其中无业务逻辑",
-        "`ModelGateway` 接通 `doubao-seed-1-8`，一次真实调用可跑通",
-        "Drizzle migration 覆盖 `person` / `pool` / `membership` / `intent` / `episode` / `artifact` / `facet` / `relation` / `responsiveness`，含 pgvector 列与 HNSW 索引",
+        "`ModelGateway` 接通实测可用的方舟模型，一次真实调用可跑通",
+        "embedding 走本地 Ollama，维度与 ADR-0001 一致，且首次调用断言维度相符",
+        "SQL migration 覆盖 `person` / `pool` / `membership` / `intent` / `episode` / `artifact` / `facet` / `relation` / `responsiveness`，含 pgvector 列与 HNSW 索引",
         "Vitest 跑在真实 Postgres；模型侧走 cassette 录制回放",
         "至少一条打 `PoolEngine` 的端到端测试通过",
-        "RLS 已启用（即使此刻策略还很薄），不是留到后面再开"
+        "RLS 已启用且经测试验证真的拦得住（不是「已开启」而已）"
       ],
       "passes": false
     },

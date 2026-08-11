@@ -102,15 +102,28 @@ alter table facet           enable row level security;
 alter table facet_evidence  enable row level security;
 alter table relation        enable row level security;
 
+-- 查任意人的校区。SECURITY DEFINER 绕过 person 的 RLS ——
+-- 否则跨校区的人会被 person 策略过滤成 NULL，导致这里的比较悄悄变成「未知」，
+-- 而不是明确的「不可见」。策略里的隐式 NULL 语义是安全事故的常见来源。
+create or replace function person_campus(target uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select campus_id from person where id = target
+$$;
+
+-- 两人的关系温度。同样需要绕过 relation 自身的 RLS。
+create or replace function relation_temperature(other uuid) returns real
+language sql stable security definer set search_path = public as $$
+  select coalesce(max(r.temperature), 0)
+  from relation r
+  where (r.a_id = other and r.b_id = current_person_id())
+     or (r.b_id = other and r.a_id = current_person_id())
+$$;
+
 -- 意图广场：同校区可见未过期且未成池的意图
 create policy intent_read_board on intent for select
   using (
     person_id = current_person_id()
-    or (
-      pool_id is null
-      and expires_at > now()
-      and campus_id = (select campus_id from person p where p.auth_user_id = auth.uid())
-    )
+    or (pool_id is null and expires_at > now() and campus_id = current_campus_id())
   );
 
 create policy intent_write_own on intent for all
@@ -125,20 +138,8 @@ create policy facet_read_disclosable on facet for select
   using (
     person_id = current_person_id()
     or visibility = 'public'
-    or (
-      visibility = 'campus'
-      and (select campus_id from person p where p.id = facet.person_id)
-          = (select campus_id from person p where p.auth_user_id = auth.uid())
-    )
-    or (
-      visibility = 'warm'
-      and exists (
-        select 1 from relation r
-        where r.temperature >= 1.0
-          and ((r.a_id = facet.person_id and r.b_id = current_person_id())
-            or (r.b_id = facet.person_id and r.a_id = current_person_id()))
-      )
-    )
+    or (visibility = 'campus' and person_campus(person_id) = current_campus_id())
+    or (visibility = 'warm' and relation_temperature(person_id) >= 1.0)
   );
 
 create policy facet_write_own on facet for all
@@ -149,3 +150,16 @@ create policy facet_evidence_read on facet_evidence for select
 
 create policy relation_read_own on relation for select
   using (a_id = current_person_id() or b_id = current_person_id());
+
+-- ============================================================
+-- 表级授权
+-- ============================================================
+-- 意图由用户直接发布，所以给写权限；切面是蒸馏产物，用户只能改可见度与删除，
+-- 不能自己 insert —— 允许手写切面就等于把「填资料」从前门赶出去又从后门放进来。
+grant select, insert, delete on intent         to authenticated;
+grant select, update, delete on facet          to authenticated;
+grant select                 on facet_evidence to authenticated;
+grant select                 on relation       to authenticated;
+
+grant execute on function person_campus(uuid)        to authenticated;
+grant execute on function relation_temperature(uuid) to authenticated;
