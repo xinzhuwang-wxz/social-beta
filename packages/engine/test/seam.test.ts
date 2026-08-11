@@ -26,7 +26,7 @@ describe('PoolEngine 这条缝', () => {
     const pong = await ctx.engine.ping()
     expect(pong.db).toBe(true)
     // 维度必须与 ADR-0001 一致：它写死在 pgvector 列定义里
-    expect(pong.model.embedDimensions).toBe(768)
+    expect(pong.model.embedDimensions).toBe(1024)
   })
 
   it('注册后能取回自己，且不接受任何画像字段', async () => {
@@ -108,7 +108,7 @@ describe('迁移覆盖度', () => {
       order by c.relname
     `
     expect(rows.length).toBeGreaterThan(0)
-    for (const r of rows) expect(r.dim).toBe(768)
+    for (const r of rows) expect(r.dim).toBe(1024)
   })
 
   it('池塘状态机拒绝非法转移', async () => {

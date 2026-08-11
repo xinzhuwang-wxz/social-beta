@@ -1,0 +1,69 @@
+# 池塘 Pool — ralph 进度与跨迭代经验
+
+验收标准的唯一真相源是 GitHub issue；.omc/prd.json 是它的投影，
+改标准请改 issue 后重跑 `node scripts/sync-prd.mjs`。
+
+================================================================
+## 已验证的事实（不要重新论证，不要改回去）
+================================================================
+
+模型（全部经 GET /models + 真实调用实测，不采信文档/搜索结果）
+  ARK_CHAT_MODEL        = doubao-seed-2-0-mini-260428   便宜档，默认
+  ARK_CHAT_MODEL_STRONG = doubao-seed-2-0-lite-260428   贵档，需显式 tier:'strong'
+  ARK_IMAGE_MODEL       = doubao-seedream-4-0-250828
+  本账号 404：doubao-seed-1-8 / seed-1-6-lite / seed-1-6-flash / 1-5-lite-32k
+
+embedding（见 docs/adr/0001）
+  本地 Ollama paraphrase-multilingual，768 维。
+  方舟全部文本 embedding 未开通且处于 Retiring。
+  all-minilm 中文区分度为负（无关句 0.5193 > 同义句 0.5043），禁用。
+  维度写死在 pgvector 列定义里 —— 换模型 = 一次 migration + 全量重算。
+
+栈
+  不用 ORM：SQL migration 是 schema 唯一真相源，类型走 supabase gen types。
+  不引入 A2A 协议 / AG2 / CAMEL / LiteLLM，理由见 DESIGN.md §7.5。
+
+================================================================
+## 踩过的坑
+================================================================
+
+1. RLS 策略无限递归
+   person 的策略里查 person、membership 的策略里查 membership，策略求值又触发策略。
+   修法：把主体查询放进 SECURITY DEFINER 函数（current_person_id / current_campus_id /
+   is_pool_member / person_campus / relation_temperature），并固定 search_path = public。
+   新增涉及跨表判断的策略时，先想清楚会不会自引用。
+
+2. RLS ≠ 可访问
+   RLS 只决定哪些行可见，表级 GRANT 决定这张表能不能碰。缺 GRANT 时策略再对也是
+   permission denied。按最小权限逐表授予，不要 grant all on all tables ——
+   那样将来新增的敏感表会被静默放开。
+
+3. 后台命令被沙箱 SIGTERM
+   run_in_background 的 brew / supabase start / create-next-app 会静默失败或被杀。
+   长任务用 `nohup cmd > /tmp/x.log 2>&1 &` 脱离进程组。
+
+4. supabase start 失败于孤儿容器
+   被 kill 过的运行会留下 supabase_db_<project> 容器，再启动报名字冲突。
+   先 `supabase stop --no-backup` 并 docker rm -f 残留容器。
+
+5. 不要用「模型应该答错」来测重试路径
+   模型看了 schema 会照对的答，测试反而挂。要验我们自己的抛错路径，
+   用恒假的 zod refine —— 把断言建立在模型服从性上，测试就成了抽奖。
+
+================================================================
+## 迭代记录
+================================================================
+
+### M1 / S1 (#2) 骨架与缝 —— 进行中
+已完成：
+  - pnpm workspace；Next.js 16.3 / React 19.2 / Tailwind 4
+  - 本地 Supabase 栈（Postgres 17.6.1.158）
+  - migration 0001 核心关系模型 + 状态机触发器 + RLS + GRANT
+  - migration 0002 向量层（pgvector 768 + HNSW）+ 可披露视图策略
+  - @pool/shared 领域契约 / @pool/model ModelGateway / @pool/db / @pool/engine PoolEngine
+  - 测试 harness：真实 Postgres + cassette 录制回放（record 1.9s → replay 5ms）
+  - 12 项测试全绿
+剩余：
+  - 真实登录流程（Supabase Auth）
+  - 一个证明 route handler 不含业务逻辑的页面
+已修订的 issue：#2 的两条 AC 被实测证伪，已就地改 issue（模型 ID、Drizzle→SQL migration）

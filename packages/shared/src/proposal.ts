@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { Domain, PoolRole, Visibility } from './domain.js'
-import { PartySize, TimeWindow } from './intent.js'
 
 /**
  * 可披露切面 —— Agent 在预演中能看到的全部内容。
@@ -54,13 +53,16 @@ export const ProposalCard = z.object({
   /** 恰好 3 条共同话题 —— 少了不够聊，多了就成了信息倾倒 */
   sharedTopics: z.array(z.string().min(1)).length(3),
   /**
-   * 恰好 1 个具体行动提案。必须含时间地点人数 ——
+   * 恰好 1 个具体行动提案。必须说清做什么、大概什么时候、在哪 ——
    * 「你们可以聊聊」不算提案，认识要能直接推向做事。
+   *
+   * when 是自由文本（「这周六上午」），不是可解析的时间区间：
+   * 提案是给人看的起点，不是给系统算的约束。具体几点由他们自己聊定。
    */
   actionProposal: z.object({
-    when: TimeWindow,
+    what: z.string().min(1),
+    when: z.string().min(1),
     where: z.string().min(1),
-    size: PartySize,
     /** 一句话说明这个提案为什么对双方都成立 */
     rationale: z.string().min(1),
   }),

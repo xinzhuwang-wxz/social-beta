@@ -1,4 +1,4 @@
 {
   "type": "json",
-  "value": "{\"response\":\"success\"}"
+  "value": "{\"name\": \"sample\", \"number\": 456, \"is_valid\": true}"
 }

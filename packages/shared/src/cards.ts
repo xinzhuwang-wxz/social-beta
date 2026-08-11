@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { PoolRole } from './domain.js'
-import { TimeWindow } from './intent.js'
 
 /**
  * Agent 在池塘里的介入产物。
@@ -19,7 +18,8 @@ export const DecisionCard = z.object({
       z.object({
         id: z.string().min(1),
         label: z.string().min(1),
-        when: TimeWindow.nullable(),
+        // 时间是给人看的提示，不是可解析的约束
+        whenHint: z.string().nullable(),
       }),
     )
     .min(2),
@@ -52,7 +52,7 @@ export const WakeCard = z.object({
   kind: z.literal('wake'),
   /** 必须引用上次约定的具体内容，不能是「好久没聚了」这种空话 */
   hook: z.string().min(1),
-  suggestedWhen: TimeWindow.nullable(),
+  suggestedWhen: z.string().nullable(),
 })
 
 /** 新成员摘要卡：让人不用爬三百条聊天记录。 */

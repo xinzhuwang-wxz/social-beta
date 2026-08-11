@@ -47,8 +47,8 @@ export async function createTestContext(): Promise<TestContext> {
     },
     ollama: {
       baseUrl: process.env['OLLAMA_BASE_URL'] ?? 'http://127.0.0.1:11434',
-      model: process.env['OLLAMA_EMBED_MODEL'] ?? 'paraphrase-multilingual',
-      dimensions: Number(process.env['EMBED_DIMENSIONS'] ?? 768),
+      model: process.env['OLLAMA_EMBED_MODEL'] ?? 'bge-m3',
+      dimensions: Number(process.env['EMBED_DIMENSIONS'] ?? 1024),
     },
     cassette: {
       // CI 默认 replay：缺条目直接抛错，绝不偷偷联网

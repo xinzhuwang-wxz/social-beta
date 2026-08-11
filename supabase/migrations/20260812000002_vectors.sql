@@ -4,7 +4,7 @@
 -- 这条承诺是「Postgres 是唯一真相源」唯一能被证伪的地方，
 -- 因此它有一条专门的等价性回归测试守着。
 --
--- 维度 768 来自 ADR-0001：paraphrase-multilingual 实测选型。
+-- 维度 1024 来自 ADR-0001：bge-m3 实测选型。
 -- 换模型 = 一次 migration + 全量重算，不是改个配置。
 
 create extension if not exists vector;
@@ -18,10 +18,7 @@ create table intent (
   raw_text   text not null,
   domain     text not null,
   slots      jsonb not null default '{}'::jsonb,
-  -- 不可让步的槽位走 SQL 硬过滤，可商量的走向量与重排
-  hard_slots text[] not null default '{}',
-  soft_slots text[] not null default '{}',
-  embedding  vector(768),
+  embedding  vector(1024),
   campus_id  text not null,
   -- 过期即死。没成行的想法不构成你是谁 —— 这既省钱，也更符合直觉。
   expires_at timestamptz not null,
@@ -49,7 +46,7 @@ create table facet (
   -- 用户逐切面自控。这个值在 RLS 里被消费，不在 prompt 里被消费。
   visibility text not null default 'campus'
     check (visibility in ('public','campus','warm','private')),
-  embedding  vector(768),
+  embedding  vector(1024),
   -- 支撑证据量。少量样本得出的画像不该被当成事实。
   n_pools    int not null default 0,
   updated_at timestamptz not null default now(),
@@ -90,7 +87,7 @@ create index relation_b_idx on relation (b_id);
 -- ============================================================
 -- 回流物的向量（用于按内容检索共同记忆）
 -- ============================================================
-alter table artifact add column embedding vector(768);
+alter table artifact add column embedding vector(1024);
 create index artifact_embedding_idx on artifact
   using hnsw (embedding vector_cosine_ops);
 

@@ -31,8 +31,8 @@ function gateway(): ModelGateway {
     },
     ollama: {
       baseUrl: process.env['OLLAMA_BASE_URL'] ?? 'http://127.0.0.1:11434',
-      model: process.env['OLLAMA_EMBED_MODEL'] ?? 'paraphrase-multilingual',
-      dimensions: Number(process.env['EMBED_DIMENSIONS'] ?? 768),
+      model: process.env['OLLAMA_EMBED_MODEL'] ?? 'bge-m3',
+      dimensions: Number(process.env['EMBED_DIMENSIONS'] ?? 1024),
     },
     cassette: {
       mode: (process.env['MODEL_CASSETTE_MODE'] as 'record' | 'replay' | 'live') ?? 'replay',
@@ -44,8 +44,8 @@ function gateway(): ModelGateway {
 describe('ModelGateway', () => {
   it('自省信息与 ADR-0001 一致', () => {
     const info = gateway().info
-    expect(info.embedDimensions).toBe(768)
-    expect(info.embedModel).toBe('paraphrase-multilingual')
+    expect(info.embedDimensions).toBe(1024)
+    expect(info.embedModel).toBe('bge-m3')
     // 已实测不可用的模型不该出现在配置里
     expect(info.chatModel).not.toBe('doubao-seed-1-8')
   })
@@ -76,7 +76,7 @@ describe('ModelGateway', () => {
       '找人一起复习高数期末',
     ])
 
-    expect(hike).toHaveLength(768)
+    expect(hike).toHaveLength(1024)
 
     const cos = (a: number[], b: number[]) => {
       let d = 0, na = 0, nb = 0
