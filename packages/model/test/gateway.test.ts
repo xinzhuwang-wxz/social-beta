@@ -36,7 +36,7 @@ function gateway(): ModelGateway {
     },
     cassette: {
       mode: (process.env['MODEL_CASSETTE_MODE'] as 'record' | 'replay' | 'live') ?? 'replay',
-      dir: process.env['MODEL_CASSETTE_DIR'] ?? 'packages/model/test/cassettes',
+      dir: process.env['MODEL_CASSETTE_DIR'] ?? 'test/cassettes',
     },
   })
 }
