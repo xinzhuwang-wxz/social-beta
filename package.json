@@ -1,0 +1,24 @@
+{
+  "name": "social-beta",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @pool/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:migrate": "pnpm --filter @pool/db migrate",
+    "db:reset": "supabase db reset",
+    "prd:sync": "node scripts/sync-prd.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

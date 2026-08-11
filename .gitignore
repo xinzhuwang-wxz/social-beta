@@ -5,3 +5,10 @@ node_modules/
 .DS_Store
 dist/
 *.log
+
+# Supabase 本地栈
+.branches
+.temp
+
+# 模型录制
+test/cassettes/**/*.bin

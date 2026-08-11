@@ -1,0 +1,253 @@
+{
+  "source": "GitHub issues — 唯一真相源。改验收标准请改 issue 后重跑 scripts/sync-prd.mjs",
+  "repo": "xinzhuwang-wxz/social-beta",
+  "parentIssue": 1,
+  "goal": "docs/GOAL.md",
+  "stories": [
+    {
+      "id": "US-002",
+      "issue": 2,
+      "milestone": "M1",
+      "priority": 1,
+      "title": "S1 · 骨架与缝：PoolEngine 门面 + ModelGateway 端口 + 真实 PG 测试 harness",
+      "blockedBy": [],
+      "acceptanceCriteria": [
+        "`pnpm dev` 同时起本地 Supabase 与 Next.js，可用真实身份登录并写入 `person`",
+        "`PoolEngine` 门面建立；抽查任一 route handler，其中无业务逻辑",
+        "`ModelGateway` 接通 `doubao-seed-1-8`，一次真实调用可跑通",
+        "Drizzle migration 覆盖 `person` / `pool` / `membership` / `intent` / `episode` / `artifact` / `facet` / `relation` / `responsiveness`，含 pgvector 列与 HNSW 索引",
+        "Vitest 跑在真实 Postgres；模型侧走 cassette 录制回放",
+        "至少一条打 `PoolEngine` 的端到端测试通过",
+        "RLS 已启用（即使此刻策略还很薄），不是留到后面再开"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "issue": 3,
+      "milestone": "M1",
+      "priority": 2,
+      "title": "S13 · 网站形态：落地页 + 移动端优先 + 深浅色三态",
+      "blockedBy": [],
+      "acceptanceCriteria": [
+        "落地页明确表达「AI 出候选与草稿，连接与发送由你决定」，并与代答式产品对比",
+        "移动端浏览器完整可用，无横向滚动",
+        "深浅色跟随系统，且正确处理三态（`data-theme` 显式选择 + `prefers-color-scheme` 未标记态）",
+        "主要动作（发意图 / 看候选 / 进池塘）三次点击内可达",
+        "键盘可达，焦点态可见，`prefers-reduced-motion` 被尊重"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "issue": 4,
+      "milestone": "M2",
+      "priority": 3,
+      "title": "S2 · 发意图 → 意图广场（T0 阶段的可用产品）",
+      "blockedBy": [
+        2
+      ],
+      "acceptanceCriteria": [
+        "输入一句自然语言，返回结构化槽位（when / where / size / level / vibe）并标注 hard/soft",
+        "抽取结果在 UI 上可逐项编辑并保存",
+        "embedding 由真实模型产出、写入 pgvector，HNSW 索引生效",
+        "`expires_at` 按 domain 设默认值；过期意图不出现在广场",
+        "广场按 `campus_id` 硬隔离，跨校区不可见",
+        "测试：槽位结构完整性、hard/soft 分类正确、过期不可见、跨校区不可见"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "issue": 5,
+      "milestone": "M2",
+      "priority": 4,
+      "title": "S3 · 匹配四段漏斗 → 候选卡（T0 权重档）",
+      "blockedBy": [
+        4
+      ],
+      "acceptanceCriteria": [
+        "硬过滤零漏网：`campus_id` / domain / 时间窗重叠 / 拉黑 / 活跃度",
+        "pgvector HNSW 召回 top-200，延迟可度量",
+        "精排产出 top-20；LLM 终排产出 3–5 张卡，每张含具体理由",
+        "`saturation` 惩罚项与每日推荐上限生效",
+        "「换一批」返回不重复的候选",
+        "测试：被拉黑者绝不出现；候选数恒落在 [3,5]；触达上限后不再被推"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "issue": 6,
+      "milestone": "M3",
+      "priority": 5,
+      "title": "S4 · A2A 预演 → 提案卡 → 真人接管建池（含三条红线断言）",
+      "blockedBy": [
+        5
+      ],
+      "acceptanceCriteria": [
+        "可披露视图由 RLS 产出；`private` 切面在 SQL 层即不可达",
+        "预演 ≤6 轮；`ProposalCard` schema 由结构化输出保证，形状恒定",
+        "`actionProposal` 必须含具体时间、地点、人数，不接受泛泛表述",
+        "`openingDraft` 可直接用、可改、可完全弃用自己写",
+        "**只有真人点「我来说」才创建 activity pool + membership**",
+        "用户可查看本次预演的完整往来记录",
+        "被匹配方不回应不产生任何惩罚或状态变化",
+        "测试：`private` 切面泄漏计数为 0；`ai_sent_message` 恒为 0；不存在绕过接管创建 pool 的代码路径"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "issue": 7,
+      "milestone": "M3",
+      "priority": 6,
+      "title": "S5 · 池塘群聊 + 事件时间线（Agent 全程沉默）",
+      "blockedBy": [
+        6
+      ],
+      "acceptanceCriteria": [
+        "Supabase Realtime 群聊，多端实时同步，含 Presence",
+        "消息与池塘状态变更写入 `episode`，写入路径零 LLM 调用",
+        "池塘时间线 UI 按时间序展示全过程",
+        "非成员读不到池塘内容（RLS 层保证）",
+        "测试：`episode` 顺序与内容正确；非成员访问被拒"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-008",
+      "issue": 8,
+      "milestone": "M4",
+      "priority": 7,
+      "title": "S6 · Agent 介入策略 + 决策卡/清单卡（SILENT 是主路径）",
+      "blockedBy": [
+        7
+      ],
+      "acceptanceCriteria": [
+        "五个触发器实现，其余情形一律返回 `SILENT`",
+        "决策卡（时间/地点投票）与清单卡（角色认领，显示缺口）可用",
+        "卡片点击直接写 `episode`，不经二次 LLM 解析",
+        "新成员入池收到此前发生了什么的摘要",
+        "用户可全局调整介入阈值；`@` 可强制唤起",
+        "Agent 发言占比可度量并上报",
+        "测试：**以负例为主** —— 大量正常对话场景断言 `SILENT`；五个触发器各自的正例；阈值调整确实改变行为"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-009",
+      "issue": 9,
+      "milestone": "M4",
+      "priority": 8,
+      "title": "S7 · 回流闭环：返图 → 共同海报 → recap → next_hook → dormant",
+      "blockedBy": [
+        8
+      ],
+      "acceptanceCriteria": [
+        "返图上传至 Supabase Storage 并写入 `artifact`（含 embedding）",
+        "回流卡在「事件结束 > 12h 且零 artifact」时触发",
+        "共同海报由 `doubao-seedream-4-0` 真实生成，多图融合保持主体一致",
+        "`recap` episode 与 `next_hook` 由真实模型从本池塘内容生成",
+        "`next_hook` 非空且引用具体内容（可核验它指向真实发生过的事）",
+        "池塘转 `dormant`，数据零丢失，可完整回看",
+        "测试：`dormant` 后所有 episode / artifact 仍可读；`next_hook` 非模板句"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-010",
+      "issue": 10,
+      "milestone": "M5",
+      "priority": 9,
+      "title": "S8 · 蒸馏：facet 分片 + Graphiti + 关系温度 + L2 重建等价性回归",
+      "blockedBy": [
+        9
+      ],
+      "acceptanceCriteria": [
+        "Distiller 仅在四个收敛点触发；抽查日志确认非每消息触发",
+        "`facet` 按 domain 分片落库，含 `n_pools` 证据量",
+        "Graphiti 接通，`group_id` 与 pool id 一一对应",
+        "`relation.temperature` 按公式物化并随事件更新",
+        "「我的切面」UI：四档可见度、逐条可编辑、可删除、显示来源 pool",
+        "**L2 全删重建等价性回归通过** —— 删光 facet / relation / KG 后从 L1 重建，结果等价",
+        "测试：等价性回归；未成行的 intent 不进入任何 facet"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-011",
+      "issue": 11,
+      "milestone": "M5",
+      "priority": 10,
+      "title": "S9 · 权重接线：responsiveness + 角色互补性 + T1/T2 档三段调度",
+      "blockedBy": [
+        10
+      ],
+      "acceptanceCriteria": [
+        "`responsiveness` 表从真实行为统计：`reply_rate` / `accept_rate` / `median_ttr` / `active_hours`",
+        "不在用户非活跃时段推送",
+        "`complementarity` 从 `membership.role` 历史学习并影响排序",
+        "三段调度按池塘数自动切档",
+        "测试：构造反例语料，验证 T0 档下 `w_social` 对结果零影响；T2 档下互补性确实改变排序结果"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-012",
+      "issue": 12,
+      "milestone": "M6",
+      "priority": 11,
+      "title": "S10 · 1000 人模拟（驱动同一条缝）+ 冷启动拐点曲线 + 指标看板",
+      "blockedBy": [
+        11
+      ],
+      "acceptanceCriteria": [
+        "`simulate.ts` 通过 `PoolEngine` 驱动，无旁路写库",
+        "1000 person × 12 周意图流，时间分布符合真实校园节奏",
+        "冷启动拐点曲线可导出为图",
+        "看板呈现四正指标：接管率 / 成行率 / 回流率 / **复现率**",
+        "看板呈现两反指标：Agent 发言占比、AI 代答次数（后者必须恒为 0）",
+        "随机抽 20 人，蒸馏画像通过人工可读性检查（「像个人」）",
+        "压测暴露：向量规模、Graphiti 写入量、单次匹配延迟"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-013",
+      "issue": 13,
+      "milestone": "M6",
+      "priority": 12,
+      "title": "S11 · 休眠唤醒 + crew 自动孵化（社群是长出来的）",
+      "blockedBy": [
+        9
+      ],
+      "acceptanceCriteria": [
+        "`next_hook` 到期触发唤醒卡，卡上内容引用上次的具体约定",
+        "接受后派生新 pool，`parent_pool` 链正确",
+        "同链连续 3 次成行触发 crew 提议",
+        "**crew 提议需真人确认，不自动建群**",
+        "测试：parent 链完整性；未确认时 crew 不存在"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-014",
+      "issue": 14,
+      "milestone": "M6",
+      "priority": 13,
+      "title": "S12 · 池塘精灵：小火人的 N+1 泛化 + Seedream 皮肤演化",
+      "blockedBy": [
+        10
+      ],
+      "acceptanceCriteria": [
+        "每个 pool 一只精灵，数据归属 pool",
+        "外观随 `artifact` 演化，Seedream 多图融合保持主体一致",
+        "`dyad` 池塘的精灵在形态与交互上即小火人",
+        "精灵可回答本池塘的历史问题，答案可溯源到具体 `episode`",
+        "测试：精灵不泄漏非本 pool 的任何记忆（跨池塘隔离断言）"
+      ],
+      "passes": false
+    }
+  ]
+}
