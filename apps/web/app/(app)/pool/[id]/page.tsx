@@ -12,8 +12,9 @@ import { PoolMessageForm } from '@/components/pool-message-form'
 import { PoolArtifactForm } from '@/components/pool-artifact-form'
 import { PoolFeedbackForm } from '@/components/pool-feedback-form'
 import { PoolDormantPanel } from '@/components/pool-dormant-panel'
+import { CompletionPanel } from '@/components/completion-panel'
 import { ErrorBanner, SectionHead } from '@/components/page-header'
-import { confirmJoinAction, finishEventAction, sealPoolAction } from './actions'
+import { confirmJoinAction, sealPoolAction } from './actions'
 
 interface PoolPageProps {
   params: Promise<{ id: string }>
@@ -52,15 +53,19 @@ export default async function PoolPage({ params, searchParams }: PoolPageProps) 
     // 忽略——见上面的注释
   }
 
-  const [board, timeline] = await Promise.all([
+  const [board, timeline, completion] = await Promise.all([
     engine.poolBoard(actor, poolId),
     engine.poolTimeline(actor, poolId),
+    engine.completionStatus(actor, poolId),
   ])
 
   const stage = stageOf(board.state)
   const isOngoing = ['forming', 'active', 'planned'].includes(board.state)
   const isDone = board.state === 'done'
   const isDormant = board.state === 'dormant'
+  // giveFeedback / 传回流物在引擎侧 done、dormant 两个状态都能用——
+  // 封存进记忆之后仍然想补一张图、改一句反馈，不该因为点了「存进记忆」就再也够不着。
+  const canRecall = isDone || isDormant
   const wakeCard = isDormant ? await engine.wakeCardFor(poolId) : null
   const joined = board.members.filter((m) => m.state === 'joined')
 
@@ -137,38 +142,34 @@ export default async function PoolPage({ params, searchParams }: PoolPageProps) 
           {!isDormant && <PoolMessageForm poolId={poolId} />}
 
           {isOngoing && (
-            <form
-              action={finishEventAction.bind(null, poolId)}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2"
-            >
-              <button type="submit" className="btn btn-quiet btn-sm">
-                办完了
-              </button>
-              <p className="t-cap">
-                点了之后这株才谈得上开花——开花的依据是事真的做成了，不是聊得热闹。
-              </p>
-            </form>
+            <CompletionPanel poolId={poolId} status={completion} viewerPersonId={person.id} />
           )}
 
-          {isDone && (
+          {canRecall && (
             <section className="flex flex-col gap-5">
               <SectionHead
-                title="传张图，留句反馈"
-                hint="每一份返图都会让这株多开一朵花——它是「这件事真的发生过」的证据。"
+                title={isDone ? '传张图，留句反馈' : '还能继续留资料、改反馈'}
+                hint={
+                  isDone
+                    ? '每一份返图都会让这株多开一朵花——它是「这件事真的发生过」的证据。'
+                    : '已经存进记忆了，但补一张照片、改一句反馈，随时都可以。'
+                }
               />
               <PoolArtifactForm poolId={poolId} />
               <PoolFeedbackForm poolId={poolId} />
-              <form
-                action={sealPoolAction.bind(null, poolId)}
-                className="card flex flex-col gap-2 p-4"
-              >
-                <button type="submit" className="btn btn-primary self-start">
-                  写完了，存进记忆
-                </button>
-                <p className="t-cap">
-                  会生成一句回顾和下次的理由，随后这株结果歇下——不是销毁，是把籽留下。
-                </p>
-              </form>
+              {isDone && (
+                <form
+                  action={sealPoolAction.bind(null, poolId)}
+                  className="card flex flex-col gap-2 p-4"
+                >
+                  <button type="submit" className="btn btn-primary self-start">
+                    写完了，存进记忆
+                  </button>
+                  <p className="t-cap">
+                    会生成一句回顾和下次的理由，随后这株结果歇下——不是销毁，是把籽留下。
+                  </p>
+                </form>
+              )}
             </section>
           )}
         </div>

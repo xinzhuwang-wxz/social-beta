@@ -1,12 +1,18 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { DOMAIN_LABEL } from '@pool/shared'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
 import { FacetList } from '@/components/facet-list'
 import { GardenScene, type GardenPlant } from '@/components/garden-scene'
 import { PageShell, EmptyState, ErrorBanner, SectionHead } from '@/components/page-header'
-import { stageOf } from '@/lib/growth'
 import { setFacetVisibilityAction, deleteFacetAction } from './actions'
+
+const RECAP_DATE_FORMAT = new Intl.DateTimeFormat('zh-CN', {
+  month: 'long',
+  day: 'numeric',
+  weekday: 'short',
+})
 
 interface MePageProps {
   searchParams: Promise<{ error?: string }>
@@ -15,13 +21,24 @@ interface MePageProps {
 /**
  * /me —— 回忆森林。A 类世界页面。
  *
- * 森林里只种**已经开过花或已经结果的**那些，也就是真的发生过的事。
- * 还在长的留在「我的花园」里：森林是档案，不是待办清单。
- * 这条区分不是版面偏好，是产品主张的字面执行 ——
+ * 森林里只种**对外可见的共同回忆**，来自 PoolEngine.myForestRecaps ——
+ * 不是简单地把 done/dormant 状态的池塘都摆出来。两条理由都必须在这里生效：
+ *
+ * 1. 只有真正封存过（sealPool 写过 recap）的池塘才有资格进来，
+ *    还没点「写完了，存进记忆」的不算数。
+ * 2. 双向门控：任一方在私密评价里选了「这次算了」，双方都不该在森林里
+ *    看到这份回忆。这条判断已经下沉到 forest_recap 视图的 where 子句里，
+ *    这一层直接用引擎给的结果，不再自己按 pool.state 重新判断一遍 ——
+ *    两套判断迟早会算出两个答案。
+ *
+ * 还在长的、已经办完但还没封存的，都留在「我的花园」里：森林是档案，
+ * 不是待办清单。这条区分不是版面偏好，是产品主张的字面执行 ——
  * 你的画像由你完成过什么构成，不由你正在打算什么构成。
  *
  * 只做「取 actor → 调 PoolEngine → 渲染」。溯源、可见度、删除这三件事
  * 全部由 FacetView 的形状和 PoolEngine 的方法回答，这一层不重复判断。
+ *
+ * ⚠️ 下面「系统怎么描述你」那一段（切面管理）不属于这次改动范围，保持原样。
  */
 export default async function MePage({ searchParams }: MePageProps) {
   const { error } = await searchParams
@@ -31,17 +48,25 @@ export default async function MePage({ searchParams }: MePageProps) {
   const person = await engine.currentPerson(actor)
   if (!person) redirect('/onboarding')
 
-  const [facets, pools] = await Promise.all([engine.myFacets(actor), engine.myPools(actor)])
+  const [facets, pools, recaps] = await Promise.all([
+    engine.myFacets(actor),
+    engine.myPools(actor),
+    engine.myForestRecaps(actor),
+  ])
 
-  const finished = pools.filter((p) => p.state === 'done' || p.state === 'dormant')
-  const growing = pools.length - finished.length
+  // 「还在长」只看池塘是不是已经走完（done/dormant），与森林的可见度门控无关——
+  // 一件事已经办完但还没封存、或者办完了但因为门控没进森林，都不该被说成「还在长」，
+  // 所以这句提示只用来引导去花园看还没走完的那些，不试图解释森林为什么没显示某一株。
+  const growing = pools.filter((p) => !['done', 'dormant'].includes(p.state)).length
 
-  const forest: GardenPlant[] = finished.map((pool) => ({
-    key: pool.id,
-    stage: stageOf(pool.state),
-    artifacts: pool.artifactCount,
-    title: pool.title ?? '（还没起名字）',
-    href: `/pool/${pool.id}`,
+  const forest: GardenPlant[] = recaps.map((recap) => ({
+    key: recap.poolId,
+    // 能出现在 forest_recap 视图里的池塘必然已经被 sealPool 转成 dormant——
+    // 森林里的植物统一是「结果」形态，不需要再查一次 pool.state。
+    stage: 'fruit',
+    artifacts: 0,
+    title: recap.title ?? '（还没起名字）',
+    href: `/pool/${recap.poolId}`,
   }))
 
   return (
@@ -56,12 +81,14 @@ export default async function MePage({ searchParams }: MePageProps) {
 
       <p className="t-sec max-w-2xl">
         这里没有一条是你填的。每一句画像都从你参与过的事里长出来，点开就能看到具体是哪几株。
+        只有双方都愿意留下的回忆才会出现在这里——任何一方觉得这次算了，这株就不会长进来，
+        且不会告诉对方是谁的决定。
       </p>
 
       <GardenScene
         plants={forest}
-        bird={finished.length > 0 ? 'happy' : 'resting'}
-        emptyHint="森林里还没有树。真的办成过的事，才会长到这里来。"
+        bird={forest.length > 0 ? 'happy' : 'resting'}
+        emptyHint="森林里还没有树。真的办成、双方也都愿意留下的事，才会长到这里来。"
       />
 
       {growing > 0 && (
@@ -74,6 +101,37 @@ export default async function MePage({ searchParams }: MePageProps) {
       )}
 
       {error && <ErrorBanner message={decodeURIComponent(error)} />}
+
+      {recaps.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <SectionHead title="共同回忆" hint="点开每一株，能看到当时的时间线" />
+          <ul className="flex flex-col gap-2.5">
+            {recaps.map((recap) => (
+              <li key={recap.poolId}>
+                <Link
+                  href={`/pool/${recap.poolId}`}
+                  className="card flex flex-col gap-1.5 p-3 transition-colors duration-200 hover:bg-surface-alt sm:p-4"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <p className="t-hand text-base font-semibold text-ink break-anywhere">
+                      {recap.title ?? '（还没起名字）'}
+                    </p>
+                    <span className="t-cap shrink-0">
+                      {RECAP_DATE_FORMAT.format(recap.activityAt ?? recap.createdAt)}
+                    </span>
+                  </div>
+                  {recap.domain && (
+                    <span className="pill self-start">
+                      {DOMAIN_LABEL[recap.domain as keyof typeof DOMAIN_LABEL] ?? recap.domain}
+                    </span>
+                  )}
+                  <p className="text-sm leading-relaxed text-ink break-anywhere">{recap.summary}</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="flex flex-col gap-4">
         <SectionHead

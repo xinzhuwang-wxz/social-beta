@@ -33,9 +33,38 @@ export interface TestContext {
 const DATABASE_URL =
   process.env['DATABASE_URL'] ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
+/**
+ * 开跑前确认库是干净的。
+ *
+ * 意图默认是 open scope，而 open 跨校区可见 —— 所以库里任何一条别人的
+ * 未过期意图都会进入本次测试的候选召回，改变终排 prompt，让 cassette
+ * 打不中。那时的失败信息是「cassette 缺条目」，指向录制回放，
+ * 而真正的原因是库里有别的数据。我自己被这条信息误导过一次。
+ *
+ * 与其让每个人各踩一遍，不如在这里把隐含假设说出来。
+ */
+async function assertPristine(sql: Sql, myCampus: string): Promise<void> {
+  const [row] = await sql<{ n: number; campuses: string[] }[]>`
+    select count(*)::int as n, coalesce(array_agg(distinct campus_id), '{}') as campuses
+    from intent
+    where expires_at > now() and campus_id <> ${myCampus}
+  `
+  if (!row || row.n === 0) return
+  throw new Error(
+    `测试库里有 ${row.n} 条来自其他 campus 的未过期意图（${row.campuses.slice(0, 3).join(', ')}${
+      row.campuses.length > 3 ? ' …' : ''
+    }）。\n` +
+      `  意图默认 open scope、跨校区可见，它们会进入候选召回并改变终排 prompt，\n` +
+      `  症状会表现为「cassette 缺条目」—— 那是假象，真正的原因是库不干净。\n` +
+      `  常见来源：pnpm simulate 正在跑，或上一次跑到一半被中断。\n` +
+      `  处理：等模拟跑完，或执行 pnpm db:reset && pnpm db:migrate 后重跑。`,
+  )
+}
+
 export async function createTestContext(): Promise<TestContext> {
   const sql = createDb({ url: DATABASE_URL, max: 4 })
   const campusId = `test-${randomUUID().slice(0, 8)}`
+  await assertPristine(sql, campusId)
 
   const model = createModelGateway({
     ark: {

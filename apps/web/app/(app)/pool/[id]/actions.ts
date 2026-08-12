@@ -53,13 +53,16 @@ export async function postMessageAction(
 export type ArtifactState =
   | { status: 'idle' }
   | { status: 'error'; message: string }
-  | { status: 'added'; at: number }
+  | { status: 'added'; at: number; id: string }
 
 /**
  * 传一份回流物。
  *
  * uri 是一个链接，不是文件上传——这里没有接对象存储，不假装能收文件。
  * 用户把图床、相册分享出来的链接粘进来即可。
+ *
+ * 返回值带上新记录的 id：这是「传错了能撤回」的前提——PoolArtifactForm
+ * 拿这个 id 立刻挂一个撤回按钮，不需要另开一个「列出我传过的东西」的接口。
  */
 export async function addArtifactAction(
   poolId: string,
@@ -71,13 +74,35 @@ export async function addArtifactAction(
   const caption = String(formData.get('caption') ?? '').trim()
   if (!uri) return { status: 'error', message: '先粘一个图片链接' }
 
+  let id: string
   try {
-    await getEngine().addArtifact(actor, poolId, { kind: 'photo', uri, caption: caption || undefined })
+    const result = await getEngine().addArtifact(actor, poolId, {
+      kind: 'photo',
+      uri,
+      caption: caption || undefined,
+    })
+    id = result.id
   } catch (err) {
     return { status: 'error', message: err instanceof Error ? err.message : '传失败了，再试一次' }
   }
   revalidatePath(poolPath(poolId))
-  return { status: 'added', at: Date.now() }
+  return { status: 'added', at: Date.now(), id }
+}
+
+/**
+ * 撤下一份自己传的回流物。
+ *
+ * 管得了自己传的，改不了对方传的——引擎侧的 RLS 兜底，这里只是把
+ * 「传错了」这个真实需求接进 UI。见 removeArtifact 的注释。
+ */
+export async function removeArtifactAction(poolId: string, artifactId: string): Promise<void> {
+  const actor = await requireActor()
+  try {
+    await getEngine().removeArtifact(actor, artifactId)
+  } catch (err) {
+    failWith(poolId, err)
+  }
+  revalidatePath(poolPath(poolId))
 }
 
 export type FeedbackState =
@@ -85,7 +110,12 @@ export type FeedbackState =
   | { status: 'error'; message: string }
   | { status: 'saved'; at: number }
 
-/** 留一句反馈。只有本人看得见——让人知道队友怎么评价自己，所有人就只写好话了。 */
+/**
+ * 留一句私密评价。只有本人看得见——让人知道队友怎么评价自己，所有人就只写好话了。
+ *
+ * again 是唯一必选项，也是共同回忆双向门控的开关（见 forest_recap 视图）。
+ * note / reflection / photoUri 都可选，不强制填任何一个——填不了的反馈等于没有反馈。
+ */
 export async function giveFeedbackAction(
   poolId: string,
   _prevState: FeedbackState,
@@ -94,12 +124,19 @@ export async function giveFeedbackAction(
   const actor = await requireActor()
   const again = String(formData.get('again') ?? '')
   const note = String(formData.get('note') ?? '').trim()
+  const reflection = String(formData.get('reflection') ?? '').trim()
+  const photoUri = String(formData.get('photoUri') ?? '').trim()
   if (again !== 'yes' && again !== 'maybe' && again !== 'no') {
     return { status: 'error', message: '选一个态度吧' }
   }
 
   try {
-    await getEngine().giveFeedback(actor, poolId, { again, note: note || undefined })
+    await getEngine().giveFeedback(actor, poolId, {
+      again,
+      note: note || undefined,
+      reflection: reflection || undefined,
+      photoUri: photoUri || undefined,
+    })
   } catch (err) {
     return { status: 'error', message: err instanceof Error ? err.message : '保存失败，再试一次' }
   }
@@ -121,11 +158,35 @@ export async function tapCardAction(poolId: string, cardId: string, optionId: st
   revalidatePath(poolPath(poolId))
 }
 
-/** 事件办完。转 done，之后才谈得上传返图、写反馈。 */
+/**
+ * 我确认这件事办完了。
+ *
+ * 不是点了就转 done——这只是记一条「我的确认」，全员（在册成员）都确认过
+ * 池塘才真的转 done。UI 侧（CompletionPanel）必须把「等待对方确认」这个
+ * 中间态显示出来，不能让人以为点了就完了。
+ */
 export async function finishEventAction(poolId: string): Promise<void> {
   const actor = await requireActor()
   try {
     await getEngine().finishEvent(actor, poolId)
+  } catch (err) {
+    failWith(poolId, err)
+  }
+  revalidatePath(poolPath(poolId))
+}
+
+/**
+ * 撤回「已完成」的确认。
+ *
+ * 只在全员都确认、池塘还没转 done 之前有意义——点错了、活动其实没办成，
+ * 撤回自己那一条，池塘留在原状态继续讨论。全员确认转 done 之后引擎会拒绝撤回，
+ * 但那个状态下页面根本不会渲染这个按钮（CompletionPanel 只在 isOngoing 时出现），
+ * 这里的 try/catch 只是兜底，不是主要防线。
+ */
+export async function withdrawCompletionAction(poolId: string): Promise<void> {
+  const actor = await requireActor()
+  try {
+    await getEngine().withdrawCompletion(actor, poolId)
   } catch (err) {
     failWith(poolId, err)
   }

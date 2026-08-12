@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import type { Candidate, PoolEngine } from '@pool/engine'
-import { MAX_CANDIDATES, MIN_CANDIDATES } from '@pool/shared'
+import type { PoolEngine, WillingCandidate } from '@pool/engine'
+import { DELIVERY_FANOUT } from '@pool/engine'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
-import { CandidateCard } from '@/components/candidate-card'
+import { SeedDispatchPanel } from '@/components/seed-dispatch-panel'
+import { WillingCandidateCard } from '@/components/willing-candidate-card'
 import { PageHeader, PageShell, EmptyState } from '@/components/page-header'
 
 type MyIntent = Awaited<ReturnType<PoolEngine['myIntents']>>[number]
@@ -14,11 +15,18 @@ interface CandidatesPageProps {
 }
 
 /**
- * 候选卡（S3 #5）。
+ * 候选（S3 #5，投递制版本）。
  *
- * 同样只做「取 actor → 调 PoolEngine → 渲染」。findCandidates 本身只认
- * 「本人的意图」，所以这里先用 myIntents 确认这条意图确实是当前用户发的——
- * 给出诚实的引导页，而不是让 PoolEngine 抛出的权限错误裸奔到用户面前。
+ * 引擎从「挑选制」改成了「投递制」（docs/STORY.md 第②③阶段，
+ * packages/engine/src/delivery-service.ts）：发起人不再从候选卡里直接挑一个
+ * 去接管——那会让他把仅有的几次尝试勇气花在一次抛硬币上。现在的顺序是
+ * 三步：种子先发出去（`deliverSeed`），候选各自表态愿意与否（信箱页，
+ * 另一条线在做），发起人只在已经说了「愿意」的人里选（`willingFor` →
+ * `chooseCompanion`）。这一页只做后两步：只做「取 actor → 调 PoolEngine →
+ * 渲染」，`willingFor` 本身安全幂等，`deliverSeed`／`chooseCompanion` 都封在
+ * 子组件的 `useActionState` 表单里，只有真人点击才会触发——尤其是
+ * `deliverSeed`，它内部直接调 `refreshCandidates`，每次调用都真花一次匹配
+ * 漏斗的钱，绝不能挂在这个页面的渲染路径上。
  */
 export default async function CandidatesPage({ searchParams }: CandidatesPageProps) {
   const actor = await requireActor()
@@ -35,81 +43,76 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
   const sourceIntent = mine.find((i) => i.id === intentId)
   if (!sourceIntent) return <IntentNotFound intents={mine} />
 
-  let candidates: Candidate[] = []
-  let matchError: string | null = null
+  let willing: WillingCandidate[] = []
+  let willingError: string | null = null
   try {
-    candidates = await engine.candidatesFor(actor, intentId)
+    willing = await engine.willingFor(actor, intentId)
   } catch (err) {
-    matchError = err instanceof Error ? err.message : '匹配暂时打不开，晚点再试'
+    willingError = err instanceof Error ? err.message : '暂时看不到谁愿意，晚点再试'
   }
 
   return (
     <PageShell>
       <PageHeader
-        eyebrow="你的 Agent 带回来的"
+        eyebrow="你发出去的种子"
         title={sourceIntent.rawText}
-        lede="每张卡上的「为什么是他」都必须引用他真的写过的内容——读起来像模板句，就说明这次没匹配好，你可以直接跳过。"
+        lede="种子先发给几位可能合适的人，等他们各自表态愿意，你再从愿意的人里选——选中的那一刻池塘就成立，你写的第一句话必须是你自己的。"
         aside={
-          candidates.length > 0 ? (
-            <span className="t-cap text-ink-soft">{candidates.length} 张</span>
+          willing.length > 0 ? (
+            <span className="t-cap text-ink-soft">{willing.length} 人愿意</span>
           ) : undefined
         }
       />
 
-      {matchError ? (
-        <MatchError message={matchError} />
-      ) : candidates.length === 0 ? (
-        <EmptyCandidates />
-      ) : (
-        <>
+      <SeedDispatchPanel intentId={intentId} fanout={DELIVERY_FANOUT} />
+
+      <div className="flex flex-col gap-5">
+        <p className="t-cap font-medium tracking-wide text-accent-deep">愿意跟你一起的人</p>
+
+        {willingError ? (
+          <WillingError message={willingError} />
+        ) : willing.length === 0 ? (
+          <EmptyWilling />
+        ) : (
           <ul className="flex flex-col gap-5">
-            {candidates.map((candidate, i) => (
-              <li key={candidate.personId}>
-                <CandidateCard
-                  candidate={candidate}
-                  seekerIntentId={intentId}
-                  index={i + 1}
-                />
+            {willing.map((w, i) => (
+              <li key={w.personId}>
+                <WillingCandidateCard candidate={w} intentId={intentId} index={i + 1} />
               </li>
             ))}
           </ul>
-          <p className="border-t border-border pt-5 text-xs leading-relaxed text-ink-soft">
-            一张都不合适？什么都不做就行。不点「我来说」，对方永远不会知道你看过他——
-            候选卡不是聊天记录，它只存在于你这一侧。
-          </p>
-        </>
-      )}
+        )}
+      </div>
     </PageShell>
   )
 }
 
-function EmptyCandidates() {
+function WillingError({ message }: { message: string }) {
   return (
     <EmptyState>
-      <p>
-        校区里暂时没有合适的人可以推荐——不是没人在，是这一批凑不出
-        {` ${MIN_CANDIDATES}`}–{MAX_CANDIDATES} 个靠谱的候选。
-      </p>
-      <Link
-        href="/square"
-        className="mt-3 inline-block text-accent-deep underline decoration-dotted underline-offset-4"
-      >
-        去种子广场自己翻翻 →
-      </Link>
+      <p>暂时看不到谁愿意：{message}</p>
+      <p className="mt-1">过会儿再回来看看。</p>
     </EmptyState>
   )
 }
 
-function MatchError({ message }: { message: string }) {
+/**
+ * 诚实的空状态：这里区分不了「还没发出去」和「发出去了但没人回」——
+ * `willingFor` 只认 `state = 'willing'`，两种情况看到的都是空列表，
+ * 所以文案把两种可能都说清楚，而不是替用户猜一个。
+ */
+function EmptyWilling() {
   return (
     <EmptyState>
-      <p>匹配暂时跑不动：{message}</p>
-      <p className="mt-1">过会儿再回来看看，或者先去广场逛逛。</p>
+      <p>
+        现在没有人在等你选——可能是这颗种子还没发出去，也可能发出去了，但候选还没回复。
+        点上面「发出去」，然后过一会儿回来看看。
+      </p>
       <Link
-        href="/square"
+        href="/home"
         className="mt-3 inline-block text-accent-deep underline decoration-dotted underline-offset-4"
       >
-        去种子广场 →
+        如果这颗种子已经成局，去我的花园看看 →
       </Link>
     </EmptyState>
   )
@@ -118,8 +121,7 @@ function MatchError({ message }: { message: string }) {
 /**
  * 没带意图参数时的落地形态。
  *
- * 原本这里是一句「还没有指定意图」的说明加一个去广场的链接 ——
- * 但用户多半是从导航直接点进来的，他自己种的种子就在库里，
+ * 用户多半是从导航直接点进来的，他自己种的种子就在库里，
  * 让他再跳一次广场才能选，是白白多一步。直接把他的种子列出来选。
  */
 function PickIntent({ intents }: { intents: MyIntent[] }) {
@@ -128,7 +130,7 @@ function PickIntent({ intents }: { intents: MyIntent[] }) {
       <PageHeader
         eyebrow="候选"
         title="先挑一颗你种下的种子"
-        lede="候选是为某一颗具体的种子找的——不同的愿望要找的人不一样，所以没有一份「通用推荐」。"
+        lede="谁愿意跟你一起是分开算的——不同的种子，表态愿意的人不一样，所以没有一份「通用名单」。"
       />
       {intents.length === 0 ? (
         <EmptyState>
@@ -178,7 +180,7 @@ function IntentPicker({ intents }: { intents: MyIntent[] }) {
             <span className="min-w-0 text-sm leading-relaxed text-ink break-anywhere">
               {i.rawText}
             </span>
-            <span className="t-cap shrink-0 text-accent-deep">找人 →</span>
+            <span className="t-cap shrink-0 text-accent-deep">去看看 →</span>
           </Link>
         </li>
       ))}
