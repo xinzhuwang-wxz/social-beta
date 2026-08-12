@@ -1,6 +1,6 @@
 import { asPerson, type Sql } from '@pool/db'
 import type { ModelGateway } from '@pool/model'
-import type { Domain } from '@pool/shared'
+import { SILENT, type AgentCard, type Domain, type InterventionDecision } from '@pool/shared'
 import {
   listBoard,
   listMyIntents,
@@ -18,6 +18,12 @@ import {
   takeOver,
   type RehearsalRecord,
 } from './takeover-service'
+import {
+  decideIntervention,
+  makeIcebreaker,
+  makeRoster,
+  readPulse,
+} from './spirit-service'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -384,6 +390,97 @@ export class PoolEngine {
     )
   }
 
+  // ==========================================================
+  // 群聊与精灵
+  // ==========================================================
+
+  /**
+   * 发一条消息。actor_id 必然非空 —— 这是「AI 未代答」的可核验证据。
+   *
+   * 引擎里不存在 actor_id 为空的消息写入路径。精灵的产物一律是 kind='card'，
+   * 与人的发言在类型上就是两回事，不会混进同一个计数。
+   */
+  async postMessage(actor: ActorContext, poolId: string, text: string): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    const body = text.trim()
+    if (body.length === 0) throw new Error('消息不能为空')
+
+    await this.act(actor, async (tx) => {
+      // 非在册成员写不进去：RLS 管读，成员校验管写
+      const [m] = await tx<{ state: string }[]>`
+        select state from membership where pool_id = ${poolId} and person_id = ${me.id}
+      `
+      if (m?.state !== 'joined') throw new Error('不是这个池塘的成员')
+      await tx`
+        insert into episode (pool_id, kind, summary, actor_id)
+        values (${poolId}, 'message', ${body}, ${me.id})
+      `
+    })
+  }
+
+  /** 池塘时间线：组队 → 改期 → 成行的全过程，人与精灵的动作都在里面。 */
+  async poolTimeline(actor: ActorContext, poolId: string): Promise<TimelineEntry[]> {
+    return this.act(
+      actor,
+      (tx) => tx<TimelineEntry[]>`
+        select e.id, e.kind, e.summary, e.payload, e.occurred_at as "occurredAt",
+               e.actor_id as "actorId", p.display_name as "actorName"
+        from episode e left join person p on p.id = e.actor_id
+        where e.pool_id = ${poolId}
+        order by e.occurred_at asc
+      `,
+    )
+  }
+
+  /**
+   * 让精灵看一眼这个池塘，决定要不要出面。
+   *
+   * 决策是纯函数（不写库、不打模型），只有真的需要发卡时才付代价 ——
+   * 而按 ADR-0004，active 阶段绝大多数时候的正确答案是沉默。
+   */
+  async tickSpirit(poolId: string): Promise<InterventionDecision> {
+    return this.asSystem(async (tx) => {
+      const pulse = await readPulse(tx, poolId)
+      const decision = decideIntervention({
+        poolState: pulse.state,
+        minutesSinceLastMessage: pulse.minutesSinceLastMessage,
+        memberCount: pulse.memberCount,
+        cardsSent: pulse.cardsSent,
+      })
+      if (decision === SILENT || typeof decision === 'object') return SILENT
+
+      const card =
+        decision === 'need_icebreaker'
+          ? await makeIcebreaker(
+              { sql: tx, model: this.deps.model },
+              { title: pulse.title, brief: pulse.brief },
+              pulse.members,
+            )
+          : await makeRoster(tx, poolId)
+
+      // 精灵的产物是卡片，不是发言。actor_id 为空正是它的标记。
+      await tx`
+        insert into episode (pool_id, kind, summary, payload, actor_id)
+        values (${poolId}, 'card', ${cardSummary(card)}, ${tx.json(card as never)}, null)
+      `
+      return { action: 'card', trigger: pulse.state === 'forming' ? 'newcomer' : 'stall', card }
+    })
+  }
+
+  /**
+   * 点击卡片。行为直接写回 episode，不经二次 LLM 解析 ——
+   * 既省钱又准确，且不抢占用户之间的互动空间。
+   */
+  async tapCard(actor: ActorContext, poolId: string, cardId: string, optionId: string): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.act(actor, (tx) => tx`
+      insert into episode (pool_id, kind, summary, payload, actor_id)
+      values (${poolId}, 'tap', ${optionId}, ${tx.json({ cardId, optionId } as never)}, ${me.id})
+    `)
+  }
+
   /** 连接健康检查。用于启动自检与测试 harness。 */
   async ping(): Promise<{ db: boolean; model: ModelGateway['info'] }> {
     const rows = await this.deps.sql<{ ok: number }[]>`select 1 as ok`
@@ -408,4 +505,31 @@ export interface PoolSummary {
   occurredAt: Date | null
   memberCount: number
   artifactCount: number
+}
+
+export interface TimelineEntry {
+  id: string
+  kind: string
+  summary: string | null
+  payload: Record<string, unknown>
+  occurredAt: Date
+  actorId: string | null
+  /** 精灵产生的条目此处为 null —— 时间线上人与精灵一眼可分 */
+  actorName: string | null
+}
+
+/** 卡片在时间线上的一行摘要。不打模型 —— 卡片结构已经说清了它是什么。 */
+function cardSummary(card: AgentCard): string {
+  switch (card.kind) {
+    case 'decision':
+      return card.question
+    case 'roster':
+      return '还缺人：' + card.slots.filter((s) => s.takenBy.length < s.needed).map((s) => s.role).join('、')
+    case 'recap':
+      return card.prompt
+    case 'wake':
+      return card.hook
+    case 'catchup':
+      return card.summary
+  }
 }

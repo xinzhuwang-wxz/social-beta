@@ -119,6 +119,41 @@ describe('红线三 · AI 永不代答', () => {
     expect(rows[0]!.n).toBe(0)
   })
 
+  it('数据库层就拒绝「以精灵身份发言」和「冒充他人发言」', async () => {
+    const { seeker, candidate, rehearsal } = await preparePair()
+    const { poolId } = await ctx.engine.takeOver(seeker.actor, {
+      rehearsalId: rehearsal.rehearsalId,
+      opening: '一起吗',
+    })
+    await ctx.engine.confirmJoin(candidate.actor, poolId)
+
+    const asSeeker = async (fn: (tx: typeof ctx.sql) => Promise<unknown>) =>
+      ctx.sql.begin(async (tx) => {
+        await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: seeker.actor.authUserId })}, true)`
+        await tx`select set_config('role', 'authenticated', true)`
+        return fn(tx as typeof ctx.sql)
+      })
+
+    // actor_id 为空 = 以精灵身份发言
+    await expect(
+      asSeeker((tx) => tx`
+        insert into episode (pool_id, kind, summary, actor_id)
+        values (${poolId}, 'message', '我是 AI 替他说的', null)
+      `),
+    ).rejects.toThrow(/row-level security/)
+
+    // 冒充另一个成员发言
+    await expect(
+      asSeeker((tx) => tx`
+        insert into episode (pool_id, kind, summary, actor_id)
+        values (${poolId}, 'message', '假装是他说的', ${candidate.personId})
+      `),
+    ).rejects.toThrow(/row-level security/)
+
+    // 这条红线此前只由 TypeScript 保证 ——「引擎里不存在写空 actor 的路径」
+    // 是关于我们没写那样的代码的断言，不是关于那样的写入不可能的保证。
+  })
+
   it('被邀请者不确认，池塘就停在 forming，没有人替他答应', async () => {
     const { seeker, candidate, rehearsal } = await preparePair()
     const { poolId } = await ctx.engine.takeOver(seeker.actor, {
