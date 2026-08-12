@@ -42,8 +42,18 @@ const DATABASE_URL =
  * 而真正的原因是库里有别的数据。我自己被这条信息误导过一次。
  *
  * 与其让每个人各踩一遍，不如在这里把隐含假设说出来。
+ *
+ * **只在进程内第一次建 context 时查一次。** 跨校区的用例本来就要同时开
+ * 两个 context（一个校区一个），第二个开的时候当然看得见第一个的意图 ——
+ * 那是用例自己造的数据，不是污染。查一次就够：外部污染在开跑前就在那里，
+ * 而用例造的数据只会在那之后出现。
  */
+let pristineChecked = false
+
 async function assertPristine(sql: Sql, myCampus: string): Promise<void> {
+  if (pristineChecked) return
+  pristineChecked = true
+
   const [row] = await sql<{ n: number; campuses: string[] }[]>`
     select count(*)::int as n, coalesce(array_agg(distinct campus_id), '{}') as campuses
     from intent
@@ -57,7 +67,7 @@ async function assertPristine(sql: Sql, myCampus: string): Promise<void> {
       `  意图默认 open scope、跨校区可见，它们会进入候选召回并改变终排 prompt，\n` +
       `  症状会表现为「cassette 缺条目」—— 那是假象，真正的原因是库不干净。\n` +
       `  常见来源：pnpm simulate 正在跑，或上一次跑到一半被中断。\n` +
-      `  处理：等模拟跑完，或执行 pnpm db:reset && pnpm db:migrate 后重跑。`,
+      `  处理：等模拟跑完，或执行 pnpm db:reset 后重跑（它自己会跑迁移）。`,
   )
 }
 

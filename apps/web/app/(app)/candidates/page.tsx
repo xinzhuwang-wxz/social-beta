@@ -45,8 +45,15 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
 
   let willing: WillingCandidate[] = []
   let willingError: string | null = null
+  // 进度和名单一起取：两个都是安全幂等的读，不碰付费漏斗。
+  // 少了进度，空状态就只能把「还没发出去」和「发出去了没人回」揉成一句话说 ——
+  // 而这两种情况该做的事完全相反（一个是去点发出去，一个是等）。
+  let progress: { needed: number; chosen: number; delivered: number; willing: number } | null = null
   try {
-    willing = await engine.willingFor(actor, intentId)
+    ;[willing, progress] = await Promise.all([
+      engine.willingFor(actor, intentId),
+      engine.seedProgress(actor, intentId),
+    ])
   } catch (err) {
     willingError = err instanceof Error ? err.message : '暂时看不到谁愿意，晚点再试'
   }
@@ -57,11 +64,7 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
         eyebrow="你发出去的种子"
         title={sourceIntent.rawText}
         lede="种子先发给几位可能合适的人，等他们各自表态愿意，你再从愿意的人里选——选中的那一刻池塘就成立，你写的第一句话必须是你自己的。"
-        aside={
-          willing.length > 0 ? (
-            <span className="t-cap text-ink-soft">{willing.length} 人愿意</span>
-          ) : undefined
-        }
+        aside={<SeedProgress progress={progress} willing={willing.length} />}
       />
 
       <SeedDispatchPanel intentId={intentId} fanout={DELIVERY_FANOUT} />
@@ -72,7 +75,7 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
         {willingError ? (
           <WillingError message={willingError} />
         ) : willing.length === 0 ? (
-          <EmptyWilling />
+          <EmptyWilling delivered={progress?.delivered ?? 0} />
         ) : (
           <ul className="flex flex-col gap-5">
             {willing.map((w, i) => (
@@ -87,6 +90,26 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
   )
 }
 
+/**
+ * 进度只给发起人看。候选人那边一个数都看不到 —— 「还差一个」对他是竞争压力，
+ * 而这套机制靠的是他愿意表态，不是他觉得自己赢面大。
+ */
+function SeedProgress({
+  progress,
+  willing,
+}: {
+  progress: { needed: number; chosen: number; delivered: number; willing: number } | null
+  willing: number
+}) {
+  if (!progress || progress.delivered === 0) return undefined
+  const remaining = progress.needed - progress.chosen
+  return (
+    <span className="t-cap text-ink-soft">
+      {willing} 人愿意 · {remaining > 0 ? `还需 ${remaining} 人` : '已收满'}
+    </span>
+  )
+}
+
 function WillingError({ message }: { message: string }) {
   return (
     <EmptyState>
@@ -97,16 +120,23 @@ function WillingError({ message }: { message: string }) {
 }
 
 /**
- * 诚实的空状态：这里区分不了「还没发出去」和「发出去了但没人回」——
- * `willingFor` 只认 `state = 'willing'`，两种情况看到的都是空列表，
- * 所以文案把两种可能都说清楚，而不是替用户猜一个。
+ * 空状态分两种，因为该做的事完全相反：还没发出去 → 去点「发出去」；
+ * 发出去了没人回 → 等着，点什么都没用。把两者揉成一句话，
+ * 等的人会白点一次（还要多花一次匹配的钱），该点的人以为自己该等。
  */
-function EmptyWilling() {
+function EmptyWilling({ delivered }: { delivered: number }) {
+  if (delivered === 0) {
+    return (
+      <EmptyState>
+        <p>这颗种子还没发出去。点上面的「发出去」，它才会到别人手里。</p>
+      </EmptyState>
+    )
+  }
   return (
     <EmptyState>
       <p>
-        现在没有人在等你选——可能是这颗种子还没发出去，也可能发出去了，但候选还没回复。
-        点上面「发出去」，然后过一会儿回来看看。
+        种子已经发给 {delivered} 个人了，还没有人回复。他们各自决定要不要参与，
+        这需要一点时间 —— 过会儿再回来看看。
       </p>
       <Link
         href="/home"

@@ -59,15 +59,17 @@ export default async function MePage({ searchParams }: MePageProps) {
   // 所以这句提示只用来引导去花园看还没走完的那些，不试图解释森林为什么没显示某一株。
   const growing = pools.filter((p) => !['done', 'dormant'].includes(p.state)).length
 
-  const forest: GardenPlant[] = recaps.map((recap) => ({
-    key: recap.poolId,
-    // 能出现在 forest_recap 视图里的池塘必然已经被 sealPool 转成 dormant——
-    // 森林里的植物统一是「结果」形态，不需要再查一次 pool.state。
-    stage: 'fruit',
-    artifacts: 0,
-    title: recap.title ?? '（还没起名字）',
-    href: `/pool/${recap.poolId}`,
-  }))
+  const forest: GardenPlant[] = recaps.map(
+    (recap): GardenPlant => ({
+      key: recap.poolId,
+      // 能出现在 forest_recap 视图里的池塘必然已经被 sealPool 转成 dormant——
+      // 森林里的植物统一是「结果」形态，不需要再查一次 pool.state。
+      stage: 'fruit',
+      artifacts: 0,
+      title: recap.title ?? '（还没起名字）',
+      href: `/pool/${recap.poolId}`,
+    }),
+  )
 
   return (
     <PageShell wide>

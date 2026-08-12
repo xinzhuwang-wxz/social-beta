@@ -226,3 +226,44 @@ describe('发起人选择与成局', () => {
     }
   })
 })
+
+describe('投递进度', () => {
+  it('发起人看得到还需要几个人、多少人表了态', async () => {
+    const ctx = await createTestContext()
+    try {
+      const { seeker, others, seedId } = await seedWithCandidates(ctx, 2)
+      await ctx.engine.deliverSeed(seeker.actor, seedId)
+
+      const before = await ctx.engine.seedProgress(seeker.actor, seedId)
+      expect(before.needed).toBe(2)
+      expect(before.chosen).toBe(0)
+      expect(before.delivered).toBeGreaterThan(0)
+      expect(before.willing).toBe(0)
+
+      await ctx.engine.replyToSeed(others[0]!.actor, seedId, true)
+      await ctx.engine.replyToSeed(others[1]!.actor, seedId, false)
+
+      const mid = await ctx.engine.seedProgress(seeker.actor, seedId)
+      // 表态是「愿意」才计数 —— 拒绝的人不该让发起人以为还有戏
+      expect(mid.willing).toBe(1)
+
+      await ctx.engine.chooseCompanion(seeker.actor, seedId, others[0]!.personId, '一起？')
+      const after = await ctx.engine.seedProgress(seeker.actor, seedId)
+      expect(after.chosen).toBe(1)
+      expect(after.needed).toBe(2)
+    } finally {
+      await ctx.cleanup()
+    }
+  })
+
+  it('候选人看不到投递进度 —— 「还差一个」对他是竞争压力', async () => {
+    const ctx = await createTestContext()
+    try {
+      const { seeker, others, seedId } = await seedWithCandidates(ctx)
+      await ctx.engine.deliverSeed(seeker.actor, seedId)
+      await expect(ctx.engine.seedProgress(others[0]!.actor, seedId)).rejects.toThrow(/无权/)
+    } finally {
+      await ctx.cleanup()
+    }
+  })
+})

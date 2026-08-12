@@ -346,60 +346,88 @@ describe('红线一二 · 每一条建池路径都要真人签字', () => {
     expect(sites.sort()).toEqual(['pool-engine.ts', 'pool-engine.ts', 'takeover-service.ts'])
   })
 
+  /**
+   * 投递制的三条用例各开一个独立 context。
+   *
+   * 本文件其余部分共用一个 ctx，而 preparePair() 每次造的人名字与意图原文
+   * 完全相同 —— 重名重文的候选之间距离打平，排序最终落到随机主键上，
+   * 跨运行不稳定，于是终排 prompt 每次都不同、cassette 打不中。
+   *
+   * 光换 context 不够：意图默认 open scope，**校区不是隔离**，
+   * 另一个 campus 的意图照样进召回。所以这几条用例的意图都声明 campus scope
+   * —— 「任一方声明 campus 就不跨校匹配」，召回集这才真的收窄到本用例造的人。
+   *
+   * 这不是给测试开后门：线上重文的候选谁前谁后无所谓，
+   * 但录制回放要求同样输入得到同样 prompt。
+   */
   it('投递制选人：空的第一句话建不出池塘', async () => {
-    const seeker = await ctx.makePerson('发起人')
-    const other = await ctx.makePerson('候选')
-    await ctx.engine.publishIntent(other.actor, '周末想找人一起打球')
-    const seed = await ctx.engine.publishIntent(seeker.actor, '周末想打球，缺一个')
-    await ctx.engine.deliverSeed(seeker.actor, seed.id)
-    await ctx.engine.replyToSeed(other.actor, seed.id, true)
+    const own = await createTestContext()
+    try {
+      const seeker = await own.makePerson('发起人甲')
+      const other = await own.makePerson('候选乙')
+      await own.engine.publishIntent(other.actor, '想找人一起去打羽毛球，我球拍多带一副', { scope: 'campus' })
+      const seed = await own.engine.publishIntent(seeker.actor, '周三晚上想打羽毛球，缺一个搭子', { scope: 'campus' })
+      await own.engine.deliverSeed(seeker.actor, seed.id)
+      await own.engine.replyToSeed(other.actor, seed.id, true)
 
-    // 空白开场白 —— 系统不替人开口
-    await expect(
-      ctx.engine.chooseCompanion(seeker.actor, seed.id, other.personId, '   '),
-    ).rejects.toThrow(/第一句话不能为空/)
+      // 空白开场白 —— 系统不替人开口
+      await expect(
+        own.engine.chooseCompanion(seeker.actor, seed.id, other.personId, '   '),
+      ).rejects.toThrow(/第一句话不能为空/)
 
-    const pools = await ctx.engine.myPools(seeker.actor)
-    expect(pools).toEqual([])
+      expect(await own.engine.myPools(seeker.actor)).toEqual([])
+    } finally {
+      await own.cleanup()
+    }
   })
 
   it('投递制选人：开场白落库时署的是真人，不是系统', async () => {
-    const seeker = await ctx.makePerson('发起人')
-    const other = await ctx.makePerson('候选')
-    await ctx.engine.publishIntent(other.actor, '想找人一起去看展')
-    const seed = await ctx.engine.publishIntent(seeker.actor, '周日想去看展，有人一起吗')
-    await ctx.engine.deliverSeed(seeker.actor, seed.id)
-    await ctx.engine.replyToSeed(other.actor, seed.id, true)
+    const own = await createTestContext()
+    try {
+      const seeker = await own.makePerson('发起人丙')
+      const other = await own.makePerson('候选丁')
+      await own.engine.publishIntent(other.actor, '周日想去美术馆看那个新展，一个人有点无聊', { scope: 'campus' })
+      const seed = await own.engine.publishIntent(seeker.actor, '有人周日一起看展吗，听说新展不错', { scope: 'campus' })
+      await own.engine.deliverSeed(seeker.actor, seed.id)
+      await own.engine.replyToSeed(other.actor, seed.id, true)
 
-    const { poolId } = await ctx.engine.chooseCompanion(
-      seeker.actor,
-      seed.id,
-      other.personId,
-      '周日下午两点美术馆门口？',
-    )
-    const [opening] = await ctx.sql<{ actorId: string | null; summary: string }[]>`
-      select actor_id as "actorId", summary from episode
-      where pool_id = ${poolId} and kind = 'opening'
-    `
-    // 红线三在这条路径上：第一句话必须有真人署名。
-    // chooseCompanion 整段跑在 asSystem 里（要写别人的 membership），
-    // RLS 的 with-check 拦不住它 —— 所以这条断言是这条路径唯一的守卫。
-    expect(opening?.actorId).toBe(seeker.personId)
-    expect(opening?.summary).toBe('周日下午两点美术馆门口？')
+      const { poolId } = await own.engine.chooseCompanion(
+        seeker.actor,
+        seed.id,
+        other.personId,
+        '周日下午两点美术馆门口？',
+      )
+      const [opening] = await own.sql<{ actorId: string | null; summary: string }[]>`
+        select actor_id as "actorId", summary from episode
+        where pool_id = ${poolId} and kind = 'opening'
+      `
+      // 红线三在这条路径上：第一句话必须有真人署名。
+      // chooseCompanion 整段跑在 asSystem 里（要写别人的 membership），
+      // RLS 的 with-check 拦不住它 —— 所以这条断言是这条路径唯一的守卫。
+      expect(opening?.actorId).toBe(seeker.personId)
+      expect(opening?.summary).toBe('周日下午两点美术馆门口？')
+    } finally {
+      await own.cleanup()
+    }
   })
 
   it('投递制选人：不能处置别人的种子', async () => {
-    const seeker = await ctx.makePerson('发起人')
-    const other = await ctx.makePerson('候选')
-    const stranger = await ctx.makePerson('路人')
-    await ctx.engine.publishIntent(other.actor, '想找人一起夜跑')
-    const seed = await ctx.engine.publishIntent(seeker.actor, '想找人夜跑')
-    await ctx.engine.deliverSeed(seeker.actor, seed.id)
-    await ctx.engine.replyToSeed(other.actor, seed.id, true)
+    const own = await createTestContext()
+    try {
+      const seeker = await own.makePerson('发起人戊')
+      const other = await own.makePerson('候选己')
+      const stranger = await own.makePerson('路人庚')
+      await own.engine.publishIntent(other.actor, '晚上想沿着河边慢跑，有人一起吗', { scope: 'campus' })
+      const seed = await own.engine.publishIntent(seeker.actor, '想找人晚上一起夜跑，配速慢一点', { scope: 'campus' })
+      await own.engine.deliverSeed(seeker.actor, seed.id)
+      await own.engine.replyToSeed(other.actor, seed.id, true)
 
-    await expect(
-      ctx.engine.chooseCompanion(stranger.actor, seed.id, other.personId, '一起？'),
-    ).rejects.toThrow(/无权/)
+      await expect(
+        own.engine.chooseCompanion(stranger.actor, seed.id, other.personId, '一起？'),
+      ).rejects.toThrow(/无权/)
+    } finally {
+      await own.cleanup()
+    }
   })
 
   it('唤醒派生：非成员建不出派生池塘', async () => {

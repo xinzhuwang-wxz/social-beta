@@ -1264,6 +1264,46 @@ export class PoolEngine {
   }
 
   /**
+   * 一颗种子的投递进度：还需要几个人、已经收了几个、发出去多少、多少人表了态。
+   *
+   * 这几个数只给发起人。候选人那边一个都看不到 —— 「还差一个」对候选人是
+   * 竞争压力，而这套机制靠的是他愿意表态，不是他觉得自己赢面大。
+   *
+   * 单独开一个方法而不是塞进 willingFor 的返回值：那个方法回答的是
+   * 「谁愿意」，这个回答的是「还差多少」，两件事的调用时机并不总是重合
+   * （种子刚发出去、还没人表态时，进度要显示，名单是空的）。
+   */
+  async seedProgress(
+    actor: ActorContext,
+    intentId: string,
+  ): Promise<{ needed: number; chosen: number; delivered: number; willing: number }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    return this.asSystem(async (tx) => {
+      const [row] = await tx<
+        { personId: string; needed: number; chosen: number }[]
+      >`
+        select person_id as "personId", needed, chosen_count as "chosen"
+        from intent where id = ${intentId}
+      `
+      if (!row) throw new Error('意图不存在')
+      if (row.personId !== me.id) throw new Error('无权查看他人种子的投递进度')
+
+      const [counts] = await tx<{ delivered: number; willing: number }[]>`
+        select count(*)::int as delivered,
+               count(*) filter (where state = 'willing')::int as willing
+        from seed_delivery where intent_id = ${intentId}
+      `
+      return {
+        needed: row.needed,
+        chosen: row.chosen,
+        delivered: counts?.delivered ?? 0,
+        willing: counts?.willing ?? 0,
+      }
+    })
+  }
+
+  /**
    * 选中一个同行者并成局。
    *
    * PRD 写的是「亲自选择一名」，但那与种子自己的「需要多少人」矛盾 ——

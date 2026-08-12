@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState, useState } from 'react'
 import { addArtifactAction, removeArtifactAction, type ArtifactState } from '@/app/(app)/pool/[id]/actions'
 
 const INITIAL: ArtifactState = { status: 'idle' }
@@ -15,18 +15,16 @@ const INITIAL: ArtifactState = { status: 'idle' }
  * 传上去之后立刻挂一个「撤回这张」——removeArtifact 只能删自己传的，
  * 这里也只让你撤自己刚传的那一张，不是一个完整的历史列表管理器
  * （引擎目前也没有暴露「列出这个池塘所有回流物」的读接口）。
- * `justAdded` 用本地 state 记，撤回提交时立刻乐观清空，避免撤完之后
- * 按钮还留在页面上、再点一次却因为记录已经不存在而报错。
+ * `justAdded` 是从 `state` 直接派生的，不经 effect：撤回表单提交时
+ * 在 onSubmit 里把这次的 id 记进 `removedId`，派生值立刻变回 null——
+ * 避免撤完之后按钮还留在页面上、再点一次却因为记录已经不存在而报错。
  */
 export function PoolArtifactForm({ poolId }: { poolId: string }) {
   const action = addArtifactAction.bind(null, poolId)
   const [state, formAction, pending] = useActionState(action, INITIAL)
-  const [justAdded, setJustAdded] = useState<string | null>(null)
+  const [removedId, setRemovedId] = useState<string | null>(null)
   const formKey = state.status === 'added' ? state.at : 'draft'
-
-  useEffect(() => {
-    if (state.status === 'added') setJustAdded(state.id)
-  }, [state])
+  const justAdded = state.status === 'added' && state.id !== removedId ? state.id : null
 
   return (
     <div className="flex flex-col gap-2">
@@ -68,7 +66,7 @@ export function PoolArtifactForm({ poolId }: { poolId: string }) {
           {justAdded && (
             <form
               action={removeArtifactAction.bind(null, poolId, justAdded)}
-              onSubmit={() => setJustAdded(null)}
+              onSubmit={() => setRemovedId(justAdded)}
             >
               <button
                 type="submit"

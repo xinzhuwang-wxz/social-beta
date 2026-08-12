@@ -14,7 +14,6 @@
     "test": "vitest run",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
-    "db:migrate": "pnpm --filter @pool/db migrate",
     "db:reset": "supabase db reset",
     "prd:sync": "node scripts/sync-prd.mjs",
     "simulate": "pnpm --filter @pool/seed simulate"
