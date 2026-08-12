@@ -1,4 +1,4 @@
 {
   "type": "json",
-  "value": "{\"domain\":\"contest\",\"slots\":{\"when\":null,\"where\":null,\"size\":null,\"level\":null,\"vibe\":[]}}"
+  "value": "{\"domain\":\"contest\",\"slots\":{\"when\":null,\"where\":null,\"size\":\"还缺一个\",\"level\":null,\"vibe\":[]}}"
 }

@@ -7,16 +7,18 @@ export const metadata: Metadata = {
     template: "%s · 池塘 Pool",
   },
   description:
-    "池塘是面向大学生的校园社交 AI。发一句你想干什么，AI 出候选卡和开场草稿——连接谁、怎么说、要不要回，全由你点。AI 只做预演，永不代答。",
+    "池塘不是帮你找搭子，是帮你「想做的事」真正发生。说一句人话就种下一颗种子，你的 Agent 送到合得来的人手上；两个人都点了确认，它才破土。AI 出候选和草稿，连接谁、怎么说、要不要回，全由你点。",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   // 深浅色跟随系统时，让浏览器 UI（地址栏、表单控件、滚动条）也跟着换色。
+  // 这两个值必须与 globals.css 里 --surface 的浅/深取值一致 ——
+  // 对不上时地址栏和页面之间会出现一道谁都解释不清的色差。
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#eef2ec" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e1613" },
+    { media: "(prefers-color-scheme: light)", color: "#e8ebe4" },
+    { media: "(prefers-color-scheme: dark)", color: "#10130f" },
   ],
 };
 

@@ -16,8 +16,8 @@ async function completeOne(
   b: Awaited<ReturnType<TestContext['makePerson']>>,
   texts: [string, string],
 ) {
-  const ia = await ctx.engine.publishIntent(a.actor, texts[0])
-  const ib = await ctx.engine.publishIntent(b.actor, texts[1])
+  const ia = await ctx.engine.publishIntent(a.actor, texts[0], { scope: 'campus' })
+  const ib = await ctx.engine.publishIntent(b.actor, texts[1], { scope: 'campus' })
   const r = await ctx.engine.rehearseWith(a.actor, {
     seekerIntentId: ia.id,
     candidateIntentId: ib.id,
@@ -41,9 +41,11 @@ describe('三段调度按池塘数切档', () => {
     try {
       const fresh = await ctx.makePerson('新注册的人')
       const other = await ctx.makePerson('别人')
-      await ctx.engine.publishIntent(other.actor, '周末想去爬山走野线')
+      await ctx.engine.publishIntent(other.actor, '周末想去爬山走野线', { scope: 'campus' })
 
-      const mine = await ctx.engine.publishIntent(fresh.actor, '周六想爬山，最好野线')
+      const mine = await ctx.engine.publishIntent(fresh.actor, '周六想爬山，最好野线', {
+        scope: 'campus',
+      })
       const cands = await ctx.engine.refreshCandidates(fresh.actor, mine.id)
 
       expect(cands.length).toBeGreaterThan(0)
@@ -85,7 +87,9 @@ describe('三段调度按池塘数切档', () => {
                 ${ctx.sql.json({ roles: ['guide'] } as never)},
                 ${'[' + emb!.join(',') + ']'}::vector, 2)
       `
-      await ctx.engine.publishIntent(candidate.actor, '这周末还想去爬野线，有人吗')
+      await ctx.engine.publishIntent(candidate.actor, '这周末还想去爬野线，有人吗', {
+        scope: 'campus',
+      })
 
       // 我这条意图必须落在同一领域，否则取的是别的切面
       const mine = await ctx.sql<{ id: string }[]>`
@@ -118,12 +122,20 @@ describe('缺失信号不被当作零', () => {
         '周末想徒步，走没开发的路线',
       ])
 
-      // 一个全新用户和一个老用户发几乎一样的意图
+      // 一个全新用户和一个老用户发几乎一样的意图。
+      // 全部收窄到本校：这条验的是权重归一化，与跨校无关，
+      // 而 open 范围会让召回看到上次运行残留的数据，cassette 键就不稳定了。
       const rookie = await ctx.makePerson('新注册的')
-      await ctx.engine.publishIntent(rookie.actor, '周末想去爬野线，有人一起吗')
-      await ctx.engine.publishIntent(veteran.actor, '周末想去爬野线，有人一起吗')
+      await ctx.engine.publishIntent(rookie.actor, '周末想去爬野线，有人一起吗', {
+        scope: 'campus',
+      })
+      await ctx.engine.publishIntent(veteran.actor, '周末想去爬野线，有人一起吗', {
+        scope: 'campus',
+      })
 
-      const mine = await ctx.engine.publishIntent(seeker.actor, '周六想爬山走野线')
+      const mine = await ctx.engine.publishIntent(seeker.actor, '周六想爬山走野线', {
+        scope: 'campus',
+      })
       const cands = await ctx.engine.refreshCandidates(seeker.actor, mine.id)
 
       const rookieCard = cands.find((c) => c.personId === rookie.personId)
@@ -149,8 +161,10 @@ describe('打分明细自洽', () => {
     try {
       const a = await ctx.makePerson('甲')
       const b = await ctx.makePerson('乙')
-      await ctx.engine.publishIntent(b.actor, '周末想去爬山走野线')
-      const mine = await ctx.engine.publishIntent(a.actor, '周六想爬山，最好野线')
+      await ctx.engine.publishIntent(b.actor, '周末想去爬山走野线', { scope: 'campus' })
+      const mine = await ctx.engine.publishIntent(a.actor, '周六想爬山，最好野线', {
+        scope: 'campus',
+      })
       const cands = await ctx.engine.refreshCandidates(a.actor, mine.id)
 
       for (const c of cands) {
