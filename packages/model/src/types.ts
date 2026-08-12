@@ -81,7 +81,7 @@ export class ModelGatewayError extends Error {
   constructor(
     message: string,
     readonly task: string,
-    readonly cause?: unknown,
+    override readonly cause?: unknown,
   ) {
     super(message)
     this.name = 'ModelGatewayError'

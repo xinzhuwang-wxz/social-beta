@@ -1,26 +1,242 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ==========================================================================
+   设计令牌：池塘的调色板
+   --------------------------------------------------------------------------
+   意象来自水体本身：浅色是「水面」——被天光照亮的浅滩；深色是「潭底」——
+   光线穿不透的深处。主色不是常见的暖米色纸感，而是偏冷的芦苇灰绿，
+   避免与"AI 落地页标配"的暖米色+衬线+赭石 accent 撞脸。
+   全站只留一处高饱和色："印泥朱红"（seal），只用在最关键的动作和红线声明上——
+   像编辑在手稿边缘落下的一笔朱批，而不是装饰。
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+   三态深浅色规则（不可破坏）：
+   1. 完整的浅色调色板只在裸 :root 里定义一次，这是唯一真相源。
+   2. prefers-color-scheme:dark 命中、且用户没有显式选择浅色时，
+      用 :root:not([data-theme="light"]) 覆盖同一批 token（不新增 token 名）。
+   3. 用户显式选了深色（data-theme="dark"，由 ThemeToggle 写入）时，
+      :root[data-theme="dark"] 再覆盖一遍同一批 token——不管系统是什么颜色，
+      显式选择永远优先。
+   任何 token 都不允许只在 media 或 [data-theme] 块里出现——那样会导致
+   "浅色用户从没见过 dark 分支定义、也就没人会发现它其实漏了一个 token"
+   这种经典 bug。三个块里的 token 名集合必须完全一致，只是取值不同。
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* 表面 */
+  --surface: #eef2ec; /* 水面：偏冷的浅灰绿，不是暖米纸色 */
+  --surface-alt: #e2e8dd; /* 次级表面：卡片、条纹、装饰性色带 */
+  --surface-raised: #f8faf6; /* 浮起的卡片，比水面更亮一点 */
+
+  /* 墨色文字 */
+  --ink: #12201a; /* 正文：偏绿的深墨，不是纯黑 */
+  --ink-muted: #47564c; /* 次级文字 */
+  --ink-soft: #5b6b60; /* 说明性文字。原本 #6c7b70 只有 3.94:1，
+    小字号（text-xs/sm）用它排正文不够 WCAG AA 的 4.5:1，调深到 4.99:1 */
+
+  /* 边界 */
+  --border: #cad3c2;
+  --border-strong: #9bab93;
+
+  /* 池塘绿：唯一的交互色（链接、图标、次要动作） */
+  --accent: #1f6e52;
+  --accent-strong: #175640;
+  --accent-soft: #dbe9df;
+  --accent-ink: #f4fbf6; /* 铺满 accent 底色时用的文字颜色 */
+
+  /* 印泥朱红：唯一的强调色，只用于头等动作与红线声明 */
+  --seal: #a8341f;
+  --seal-strong: #872a19;
+  --seal-soft: #f2ddd3;
+  --seal-ink: #fdf1ea;
+
+  --focus: #1f6e52; /* 焦点环固定用 accent，浅深色下都要够亮 */
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --surface: #0e1613; /* 潭底 */
+    --surface-alt: #16211c;
+    --surface-raised: #182620;
+
+    --ink: #e8eee4;
+    --ink-muted: #a9b6a9;
+    --ink-soft: #77897c;
+
+    --border: #2b3a31;
+    --border-strong: #3e5347;
+
+    --accent: #57c79a;
+    --accent-strong: #79dbb5;
+    --accent-soft: #16352a;
+    --accent-ink: #06120d;
+
+    --seal: #e2704f;
+    --seal-strong: #ef8a68;
+    --seal-soft: #3a2018;
+    --seal-ink: #180b06;
+
+    --focus: #57c79a;
   }
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface: #0e1613;
+  --surface-alt: #16211c;
+  --surface-raised: #182620;
+
+  --ink: #e8eee4;
+  --ink-muted: #a9b6a9;
+  --ink-soft: #77897c;
+
+  --border: #2b3a31;
+  --border-strong: #3e5347;
+
+  --accent: #57c79a;
+  --accent-strong: #79dbb5;
+  --accent-soft: #16352a;
+  --accent-ink: #06120d;
+
+  --seal: #e2704f;
+  --seal-strong: #ef8a68;
+  --seal-soft: #3a2018;
+  --seal-ink: #180b06;
+
+  --focus: #57c79a;
+}
+
+/* --------------------------------------------------------------------------
+   把上面的原始 token 接进 Tailwind v4 的主题系统。
+   用 @theme inline（而不是把值抄进来）是关键：Tailwind 生成的工具类里保留的
+   是 var(--surface) 这样的引用，色值仍然由上面三个块在运行时决定。
+   如果这里直接写死颜色，三态切换就会失效。
+   -------------------------------------------------------------------------- */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-surface-raised: var(--surface-raised);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-soft: var(--ink-soft);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+
+  --color-seal: var(--seal);
+  --color-seal-strong: var(--seal-strong);
+  --color-seal-soft: var(--seal-soft);
+  --color-seal-ink: var(--seal-ink);
+
+  --color-focus: var(--focus);
+
+  /* 中文编辑排版的经典配对：正文黑体栈 / 标题宋体栈，全部是系统自带字体，
+     不加载任何 webfont——校园场景的手机网络不该为字体花一次首屏加载。 */
+  --font-sans:
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-head:
+    "Songti SC", "Noto Serif CJK SC", "Noto Serif SC", STSong, SimSun, serif;
+}
+
+/* ==========================================================================
+   基础样式
+   ========================================================================== */
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* 硬约束：body 必须显式设置 background token，不能指望继承。 */
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+  /* 移动端浏览器场景：任何一处子元素撑宽都不该产生整页横向滚动。 */
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-head);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+/* 跳转链接：默认藏在视口外，聚焦时移入视口——键盘用户的第一个可达目标。 */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  transform: translateY(-150%);
+  transition: transform 150ms ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+/* 焦点态：全站统一，不依赖每个组件各自实现。
+   只在 :focus-visible 生效，鼠标点击不会出现多余的环。 */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* 页面载入的入场动效，只用在首屏一次，克制使用。 */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* prefers-reduced-motion：全局兜底，之后任何组件新增的动效都自动被这条压平，
+   不需要每处动画各自记得加媒体查询。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -14,7 +14,7 @@
   本账号 404：doubao-seed-1-8 / seed-1-6-lite / seed-1-6-flash / 1-5-lite-32k
 
 embedding（见 docs/adr/0001）
-  本地 Ollama paraphrase-multilingual，768 维。
+  本地 Ollama bge-m3，1024 维。
   方舟全部文本 embedding 未开通且处于 Retiring。
   all-minilm 中文区分度为负（无关句 0.5193 > 同义句 0.5043），禁用。
   维度写死在 pgvector 列定义里 —— 换模型 = 一次 migration + 全量重算。

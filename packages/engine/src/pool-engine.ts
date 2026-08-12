@@ -4,9 +4,11 @@ import type { Domain } from '@pool/shared'
 import {
   listBoard,
   listMyIntents,
-  publishIntent,
+  prepareIntent,
+  insertIntent,
   type BoardItem,
   type IntentRecord,
+  type PreparedIntent,
 } from './intent-service.js'
 import { findCandidates, type Candidate } from './matcher-service.js'
 import { disclosureProfileFor, rehearse, type RehearsalResult } from './rehearsal-service.js'
@@ -81,7 +83,7 @@ export class PoolEngine {
     actor: ActorContext,
     input: { handle: string; displayName: string; campusId: string },
   ): Promise<PersonRecord> {
-    return this.asSystem(async (tx) => {
+    return this.act(actor, async (tx) => {
       const rows = await tx<PersonRecord[]>`
         insert into person (auth_user_id, handle, display_name, campus_id)
         values (${actor.authUserId}, ${input.handle}, ${input.displayName}, ${input.campusId})
@@ -139,7 +141,11 @@ export class PoolEngine {
   async publishIntent(actor: ActorContext, rawText: string): Promise<IntentRecord> {
     const me = await this.currentPerson(actor)
     if (!me) throw new Error('尚未建档，无法发布意图')
-    return publishIntent({ sql: this.deps.sql, model: this.deps.model }, me.id, me.campusId, rawText)
+    // 抽取与向量化在事务外完成 —— 它们要打两次模型，放进事务会长时间占住连接。
+    // 但落库必须走用户身份，让 intent_write_own 策略生效：
+    // 「模型调用别占事务」不是绕过 RLS 的理由。
+    const prepared = await prepareIntent({ model: this.deps.model }, rawText)
+    return this.act(actor, (tx) => insertIntent(tx, me.id, me.campusId, prepared))
   }
 
   /**
@@ -162,16 +168,59 @@ export class PoolEngine {
   // ==========================================================
 
   /**
-   * 为一条意图找候选。
+   * 读候选。**幂等，不产生任何副作用** —— 刷新、后退、RSC 重渲染都安全。
+   *
+   * 没有任何一批时才生成第一批。这是渲染路径唯一允许触发生成的场合，
+   * 且只会发生一次。
+   */
+  async candidatesFor(actor: ActorContext, intentId: string): Promise<Candidate[]> {
+    const existing = await this.act(
+      actor,
+      (tx) => tx<{ candidates: Candidate[] }[]>`
+        select candidates from candidate_set
+        where intent_id = ${intentId}
+        order by batch_no desc limit 1
+      `,
+    )
+    if (existing[0]) return existing[0].candidates
+    return this.refreshCandidates(actor, intentId)
+  }
+
+  /**
+   * 换一批。**有副作用且花钱**：跑一次漏斗、计一次曝光。
+   *
+   * 只能由用户显式触发。把它和 candidatesFor 分开的理由是：
+   * 曝光上限存在的意义是防止热门用户被榨干，而如果生成挂在渲染路径上，
+   * 别人刷几次页面就能替他把配额烧掉 —— 他什么都没做错，也无从知晓。
+   */
+  async refreshCandidates(actor: ActorContext, intentId: string): Promise<Candidate[]> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+
+    const candidates = await this.generateCandidates(me, intentId)
+
+    await this.asSystem(
+      (tx) => tx`
+        insert into candidate_set (intent_id, seeker_id, batch_no, candidates)
+        select ${intentId}, ${me.id},
+               coalesce((select max(batch_no) from candidate_set where intent_id = ${intentId}), 0) + 1,
+               ${tx.json(candidates as never)}
+      `,
+    )
+    return candidates
+  }
+
+  /**
+   * 跑漏斗本身。
    *
    * 走系统通道而非用户通道：召回要看到全校区的意图池，
    * 而 RLS 的意图广场策略是为「浏览」设计的，不是为召回设计的。
    * 隐私边界在这里由漏斗自身保证 —— 返回的候选卡只含对方主动发布的意图内容。
    */
-  async findCandidates(actor: ActorContext, intentId: string): Promise<Candidate[]> {
-    const me = await this.currentPerson(actor)
-    if (!me) throw new Error('尚未建档')
-
+  private async generateCandidates(
+    me: PersonRecord,
+    intentId: string,
+  ): Promise<Candidate[]> {
     return this.asSystem(async (tx) => {
       const rows = await tx<{ id: string; rawText: string; personId: string }[]>`
         select id, raw_text as "rawText", person_id as "personId"

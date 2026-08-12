@@ -1,5 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import type { PoolEngine } from '../src/index.js'
 import { createTestContext, type TestContext } from './harness.js'
+
+/**
+ * 「注册不接受任何画像字段」是编译期不变量。
+ * 给 registerPerson 加 interests / bio 之类的入参，这里就编译不过 ——
+ * 比运行时断言可靠，因为它不依赖有人记得去跑那条测试。
+ */
+type RegisterInput = Parameters<PoolEngine['registerPerson']>[1]
+const _noProfileFields: Record<keyof RegisterInput, true> = {
+  handle: true,
+  displayName: true,
+  campusId: true,
+}
+void _noProfileFields
 
 /**
  * S1 · 骨架与缝的验收。
@@ -37,10 +51,9 @@ describe('PoolEngine 这条缝', () => {
     expect(me?.id).toBe(personId)
     expect(me?.displayName).toBe('林同学')
 
-    // 冷启动的产品承诺：注册时不填任何东西。
-    // 若将来有人给 registerPerson 加了 interests / bio 之类的入参，这条会失败。
-    const params = Object.keys({ handle: '', displayName: '', campusId: '' })
-    expect(params).toEqual(['handle', 'displayName', 'campusId'])
+    // 「注册不接受画像字段」这条不变量属于编译期，见本文件顶部的 _noProfileFields。
+    // 原先在这里就地造一个对象字面量再断言它自己的键 —— 给 registerPerson
+    // 加 interests 参数根本不会让它失败，是一条什么都没验的测试。
   })
 
   it('新注册的人没有任何池塘 —— 画像从零开始长', async () => {
@@ -55,12 +68,6 @@ describe('RLS 真的拦得住', () => {
     const other = await createTestContext() // 独立 campus
     try {
       const b = await other.makePerson('乙')
-
-      const visible = await ctx.sql`
-        select set_config('request.jwt.claims', ${JSON.stringify({ sub: a.actor.authUserId })}, true),
-               set_config('role', 'authenticated', true)
-      `
-      expect(visible).toBeDefined()
 
       // 以甲的身份查乙：RLS 的 person_read_same_campus 应当过滤掉
       const rows = await ctx.sql.begin(async (tx) => {

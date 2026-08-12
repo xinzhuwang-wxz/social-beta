@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createModelGateway, type ModelGateway } from '../src/index.js'
@@ -7,18 +6,11 @@ import { createModelGateway, type ModelGateway } from '../src/index.js'
  * ModelGateway 的真实调用验收。
  *
  * 默认以 replay 跑（读 cassette，不联网）。本地首次录制：
- *   MODEL_CASSETTE_MODE=record pnpm exec vitest run packages/model
+ *   TEST_CASSETTE_MODE=record pnpm exec vitest run
  *
  * 录制用的是真实模型输出，不是我编的响应 —— 手写假响应会把
  * 「我以为模型会这么答」偷偷编码进测试，于是验证的是想象而非产品行为。
  */
-
-if (existsSync('.env.local')) {
-  for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
-    if (m?.[1] && process.env[m[1]] === undefined) process.env[m[1]] = m[2] ?? ''
-  }
-}
 
 function gateway(): ModelGateway {
   return createModelGateway({
@@ -35,7 +27,7 @@ function gateway(): ModelGateway {
       dimensions: Number(process.env['EMBED_DIMENSIONS'] ?? 1024),
     },
     cassette: {
-      mode: (process.env['MODEL_CASSETTE_MODE'] as 'record' | 'replay' | 'live') ?? 'replay',
+      mode: (process.env['TEST_CASSETTE_MODE'] as 'record' | 'replay' | 'live') ?? 'replay',
       dir: process.env['MODEL_CASSETTE_DIR'] ?? 'test/cassettes',
     },
   })

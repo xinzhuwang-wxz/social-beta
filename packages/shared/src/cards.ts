@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { PoolRole } from './domain.js'
+import { PoolRole, PoolState } from './domain.js'
 
 /**
  * Agent 在池塘里的介入产物。
@@ -71,11 +71,18 @@ export const AgentCard = z.discriminatedUnion('kind', [
 export type AgentCard = z.infer<typeof AgentCard>
 
 /**
- * 介入触发器。只有这五种情形 Agent 才出面，其余一律沉默。
+ * 介入触发器。
  *
- * 默认沉默是主路径而不是边缘情况 —— 测试里负例数量应显著多于正例。
- * 依据：CHI 2026 关于群聊中 agent 何时该发言的研究，
- * 结论是只在出现「协作断点」时介入，其余时刻的介入都是骚扰。
+ * 精灵的节奏按池塘状态分段（ADR-0004），不是全程统一沉默：
+ *
+ *   forming 刚组队 —— 主动：破冰话题卡、角色清单卡、未收敛项的决策卡
+ *   active  事情定了 —— 沉默为主：仅 stall / undecided / newcomer 三个断点
+ *   done    事件结束 —— 主动一次：回流卡
+ *   dormant 休眠     —— 主动一次：唤醒卡
+ *
+ * 原设计是全程默认沉默，依据是 CHI 2026 关于群聊 agent 何时发言的研究。
+ * 但那条结论针对的是已在正常运转的群聊，没覆盖「刚把五个陌生人凑到一起」——
+ * 那时没人说话不是正常协作，恰恰是破冰失败，而破冰失败正是本产品要解决的痛点。
  */
 export const InterventionTrigger = z.enum([
   'stall', // 冷场且关键槽位未定
@@ -87,7 +94,24 @@ export const InterventionTrigger = z.enum([
 export type InterventionTrigger = z.infer<typeof InterventionTrigger>
 
 /**
- * 介入决策。SILENT 是绝大多数情况下的正确答案。
+ * 介入决策的入参。
+ *
+ * 必须含池塘状态：同样一段「二十分钟没人说话」的转录，
+ * 在 forming 阶段是破冰失败（该介入），在 active 阶段是大家各忙各的（该沉默）。
+ * 只看转录内容的策略表达不出这个区别。
+ */
+export const InterventionContext = z.object({
+  poolState: PoolState,
+  /** 距上一条消息的分钟数 */
+  minutesSinceLastMessage: z.number().nonnegative(),
+  memberCount: z.number().int().positive(),
+  /** 本池塘已发出的卡片数，用于给 forming 阶段的主动性封顶 */
+  cardsSent: z.number().int().nonnegative(),
+})
+export type InterventionContext = z.infer<typeof InterventionContext>
+
+/**
+ * 介入决策。
  *
  * 注意这个类型的形状：silent 分支不携带任何数据。
  * 「不说话」不需要理由字段 —— 一旦给它加上 reason，

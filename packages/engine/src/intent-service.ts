@@ -49,19 +49,25 @@ export interface BoardItem {
   createdAt: Date
 }
 
+export interface PreparedIntent {
+  rawText: string
+  extraction: IntentExtraction
+  embedding: number[]
+  ttlHours: number
+}
+
 /**
- * 发布一条意图。
+ * 抽取与向量化。**刻意不碰数据库** —— 这两步要打两次模型，
+ * 放进事务会长时间占住连接。
  *
- * 抽取与向量化都在写入之前完成 —— 若模型不可用就整体失败，
- * 而不是先落一条没有 embedding 的记录。半成品记录会悄悄从广场和召回里消失，
- * 用户以为发出去了，实际没人看得见。
+ * 拆成两个函数而不是让 publishIntent 内部绕过 RLS：
+ * 「模型调用别占事务」是成立的理由，但它证明的是「把模型调用挪出去」，
+ * 不是「用裸连接写库」。后者会让隐私边界退回到代码约定。
  */
-export async function publishIntent(
-  deps: IntentDeps,
-  personId: string,
-  campusId: string,
+export async function prepareIntent(
+  deps: Pick<IntentDeps, 'model'>,
   rawText: string,
-): Promise<IntentRecord> {
+): Promise<PreparedIntent> {
   const trimmed = rawText.trim()
   if (trimmed.length === 0) throw new Error('意图不能为空')
 
@@ -77,15 +83,35 @@ export async function publishIntent(
   const [embedding] = await deps.model.embed([trimmed])
   if (!embedding) throw new Error('embedding 生成失败')
 
-  const ttlHours = DEFAULT_INTENT_TTL_HOURS[extraction.domain]
-  const rows = await deps.sql<IntentRecord[]>`
+  return {
+    rawText: trimmed,
+    extraction,
+    embedding,
+    ttlHours: DEFAULT_INTENT_TTL_HOURS[extraction.domain],
+  }
+}
+
+/**
+ * 落库。必须在用户身份的事务内调用，让 intent_write_own 策略生效。
+ *
+ * 抽取与向量化在此之前已完成 —— 若模型不可用，整个发布失败，
+ * 而不会先落一条没有 embedding 的记录。半成品记录会悄悄从广场和召回里消失，
+ * 用户以为发出去了，实际没人看得见。
+ */
+export async function insertIntent(
+  tx: Sql,
+  personId: string,
+  campusId: string,
+  prepared: PreparedIntent,
+): Promise<IntentRecord> {
+  const rows = await tx<IntentRecord[]>`
     insert into intent (person_id, raw_text, domain, slots, embedding, campus_id, expires_at)
     values (
-      ${personId}, ${trimmed}, ${extraction.domain},
-      ${deps.sql.json(extraction.slots as never)},
-      ${toVector(embedding)}::vector,
+      ${personId}, ${prepared.rawText}, ${prepared.extraction.domain},
+      ${tx.json(prepared.extraction.slots as never)},
+      ${toVector(prepared.embedding)}::vector,
       ${campusId},
-      now() + ${`${ttlHours} hours`}::interval
+      now() + ${`${prepared.ttlHours} hours`}::interval
     )
     returning id, raw_text as "rawText", domain, slots, expires_at as "expiresAt"
   `
