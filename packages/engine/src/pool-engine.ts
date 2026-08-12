@@ -162,12 +162,12 @@ export class PoolEngine {
       return tx<PoolSummary[]>`
         select p.id, p.kind, p.state, p.domain, p.title,
                p.next_hook as "nextHook", p.occurred_at as "occurredAt",
-               (select count(*)::int from membership m2 where m2.pool_id = p.id and m2.left_at is null) as "memberCount",
+               (select count(*)::int from membership m2 where m2.pool_id = p.id and m2.state = 'joined') as "memberCount",
                (select count(*)::int from artifact a where a.pool_id = p.id) as "artifactCount"
         from membership m
         join pool p on p.id = m.pool_id
         where m.person_id = (select id from person where auth_user_id = ${actor.authUserId})
-          and m.left_at is null
+          and m.state = 'joined'
         order by coalesce(p.occurred_at, p.created_at) desc
       `
     })
@@ -279,6 +279,10 @@ export class PoolEngine {
         select ${intentId}, ${me.id},
                coalesce((select max(batch_no) from candidate_set where intent_id = ${intentId}), 0) + 1,
                ${tx.json(candidates as never)}
+        -- Next 的预取与并发双渲染会让两次请求同时算出同一个 batch_no，
+        -- 其中一次撞唯一键。这条不是「忽略错误」——落不进去只意味着
+        -- 已经有等价的一批了，用户该看到的东西一样。
+        on conflict (intent_id, batch_no) do nothing
       `,
     )
     return candidates
@@ -307,9 +311,14 @@ export class PoolEngine {
       // 只能为自己的意图找候选 —— 否则任何人都能拿别人的意图去探测全校区
       if (intent.personId !== me.id) throw new Error('无权为他人的意图匹配')
 
+      // 权重档数的是「完成过几次活动」，不是「加入过几个池塘」。
+      // 用 left_at is null 会把未确认的邀请和还没成行的 forming 都算进去，
+      // 于是一个刚被邀请、什么都还没发生的人会被判成 T1，走上他并不具备的信号。
       const [{ n: poolCount } = { n: 0 }] = await tx<{ n: number }[]>`
-        select count(*)::int as n from membership
-        where person_id = ${me.id} and left_at is null
+        select count(*)::int as n
+        from membership m join pool p on p.id = m.pool_id
+        where m.person_id = ${me.id} and m.state = 'joined'
+          and p.state in ('done','dormant')
       `
       return findCandidates(
         { sql: tx, model: this.deps.model },
@@ -537,6 +546,7 @@ export class PoolEngine {
       const decision = decideIntervention({
         poolState: pulse.state,
         minutesSinceLastMessage: pulse.minutesSinceLastMessage,
+        minutesSinceLastCard: pulse.minutesSinceLastCard,
         memberCount: pulse.memberCount,
         cardsSent: pulse.cardsSent,
       })

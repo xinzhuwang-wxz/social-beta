@@ -28,12 +28,23 @@ import { z } from 'zod'
  * forming 阶段的卡片上限。
  *
  * 主动不等于话痨：把选择摆出来就停，不追问不催促。
- * 没有这个上限，「破冰期要主动」会一路滑成每隔几分钟弹一张卡。
+ *
+ * 值是 2 而不是 3：实际产卡分支只有两条（破冰话题、角色清单），
+ * 写 3 会让这个常量永远够不着 —— 一个永远为真的上限不是上限，
+ * 而守着它的那条测试也就什么都没验。
  */
-const FORMING_CARD_CAP = 3
+const FORMING_CARD_CAP = 2
 
 /** active 阶段判定冷场的阈值（分钟）。 */
 const STALL_MINUTES = 30
+/**
+ * 两张卡之间的最小间隔（分钟）。
+ *
+ * 冷场是持续状态而不是一次性事件：只看「距上一条消息多久」的话，
+ * 冷场期间每次求值都会说该介入。没有这个冷却，用户每刷新一次页面
+ * 就多一张卡，而他什么都没做。
+ */
+const CARD_COOLDOWN_MINUTES = 60
 
 const ICEBREAKER_SYSTEM = `你是一支刚组好队的小队里的助手。这群人多半互不认识。
 
@@ -76,8 +87,10 @@ export function decideIntervention(ctx: InterventionContext): InterventionDecisi
       // 沉默为主。只有真的卡住了才出面 ——
       // 「大家各忙各的暂时没说话」和「没人牵头所以停了」在转录上长得一样，
       // 区别只在池塘状态，这正是 InterventionContext 必须带状态的原因。
-      if (ctx.minutesSinceLastMessage >= STALL_MINUTES) return 'need_roster'
-      return SILENT
+      if (ctx.minutesSinceLastMessage < STALL_MINUTES) return SILENT
+      // 冷场是持续状态：不加冷却的话，冷场期间每次求值都会说该介入
+      if (ctx.minutesSinceLastCard < CARD_COOLDOWN_MINUTES) return SILENT
+      return 'need_roster'
     }
 
     // done 的回流卡与 dormant 的唤醒卡由各自的时机触发，不走这条实时路径
@@ -140,6 +153,7 @@ export interface PoolPulse {
   memberCount: number
   cardsSent: number
   minutesSinceLastMessage: number
+  minutesSinceLastCard: number
   members: string[]
 }
 
@@ -153,12 +167,14 @@ export async function readPulse(sql: Sql, poolId: string): Promise<PoolPulse> {
       memberCount: number
       cardsSent: number
       lastMessageAt: Date | null
+      lastCardAt: Date | null
     }[]
   >`
     select p.state, p.title, p.brief,
            (select count(*)::int from membership m where m.pool_id = p.id and m.state = 'joined') as "memberCount",
            (select count(*)::int from episode e where e.pool_id = p.id and e.kind = 'card') as "cardsSent",
-           (select max(e.occurred_at) from episode e where e.pool_id = p.id and e.actor_id is not null) as "lastMessageAt"
+           (select max(e.occurred_at) from episode e where e.pool_id = p.id and e.actor_id is not null) as "lastMessageAt",
+           (select max(e.occurred_at) from episode e where e.pool_id = p.id and e.kind = 'card') as "lastCardAt"
     from pool p where p.id = ${poolId}
   `
   if (!row) throw new Error('池塘不存在')
@@ -179,8 +195,12 @@ export async function readPulse(sql: Sql, poolId: string): Promise<PoolPulse> {
     minutesSinceLastMessage: row.lastMessageAt
       ? (Date.now() - row.lastMessageAt.getTime()) / 60000
       : 0,
+    // 从没发过卡时给一个足够大的值，让冷却不成为首次介入的阻碍
+    minutesSinceLastCard: row.lastCardAt
+      ? (Date.now() - row.lastCardAt.getTime()) / 60000
+      : Number.POSITIVE_INFINITY,
     members: members.map((m) => m.displayName),
   }
 }
 
-export { FORMING_CARD_CAP, STALL_MINUTES }
+export { FORMING_CARD_CAP, STALL_MINUTES, CARD_COOLDOWN_MINUTES }

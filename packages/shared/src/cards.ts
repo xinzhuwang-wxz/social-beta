@@ -104,6 +104,14 @@ export const InterventionContext = z.object({
   poolState: PoolState,
   /** 距上一条消息的分钟数 */
   minutesSinceLastMessage: z.number().nonnegative(),
+  /**
+   * 距上一张卡的分钟数。
+   *
+   * 没有这个字段时，active 阶段的冷场判定只看消息时钟，而卡片不重置那个时钟 ——
+   * 于是一旦冷场超阈值，每刷新一次页面就多插一张卡，无上限。
+   * 反指标「Agent 发言占比」会被自己刷爆。
+   */
+  minutesSinceLastCard: z.number().nonnegative(),
   memberCount: z.number().int().positive(),
   /** 本池塘已发出的卡片数，用于给 forming 阶段的主动性封顶 */
   cardsSent: z.number().int().nonnegative(),

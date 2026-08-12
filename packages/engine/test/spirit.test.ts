@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CARD_COOLDOWN_MINUTES,
   FORMING_CARD_CAP,
   STALL_MINUTES,
   decideIntervention,
@@ -21,6 +22,8 @@ import { createTestContext, type TestContext } from './harness'
 const ctxOf = (over: Partial<InterventionContext> = {}): InterventionContext => ({
   poolState: 'active',
   minutesSinceLastMessage: 2,
+  // 默认「很久没发过卡」，让冷却不干扰那些验冷场判定的用例
+  minutesSinceLastCard: Number.POSITIVE_INFINITY,
   memberCount: 3,
   cardsSent: 0,
   ...over,
@@ -49,6 +52,25 @@ describe('介入决策 · active 阶段沉默是主路径', () => {
 
   it('只有真的卡住了才出面', () => {
     expect(decideIntervention(ctxOf({ minutesSinceLastMessage: STALL_MINUTES }))).toBe('need_roster')
+  })
+
+  it('阈值本身写死数字守一次 —— 用常量反推入参的话，常量改成什么值测试都绿', () => {
+    expect(decideIntervention(ctxOf({ minutesSinceLastMessage: 29 }))).toEqual({ action: 'silent' })
+    expect(decideIntervention(ctxOf({ minutesSinceLastMessage: 30 }))).toBe('need_roster')
+  })
+
+  it('冷场期间有冷却 —— 否则每刷新一次页面就多一张卡，而用户什么都没做', () => {
+    // 冷场早就超阈值了，但刚发过卡
+    expect(
+      decideIntervention(
+        ctxOf({ minutesSinceLastMessage: 120, minutesSinceLastCard: CARD_COOLDOWN_MINUTES - 1 }),
+      ),
+    ).toEqual({ action: 'silent' })
+    expect(
+      decideIntervention(
+        ctxOf({ minutesSinceLastMessage: 120, minutesSinceLastCard: CARD_COOLDOWN_MINUTES }),
+      ),
+    ).toBe('need_roster')
   })
 })
 

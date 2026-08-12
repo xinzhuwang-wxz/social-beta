@@ -39,6 +39,7 @@ export default async function HomePage() {
         title={featured ? `${growing.length} 件事在长` : '还没有一株'}
         stage={featured ? stageOf(featured.state) : 'seed'}
         artifacts={featured?.artifactCount ?? 0}
+        showMeaning={false}
         meta={[
           `${person.displayName} · ${person.campusId}`,
           `开过花 ${bloomed.length}`,

@@ -24,8 +24,8 @@ interface MePageProps {
  * 这条区分不是版面偏好，是产品主张的字面执行：
  * 你的画像由你完成过什么构成，不由你正在打算什么构成。
  *
- * 顺带一个实现上的好处：done / dormant 的植物形态只看 state 和 artifactCount
- * 就能定（见 stageFromSummary），所以这一页不需要为任何一株多查一次时间线。
+ * 植物形态由 pool.state 唯一决定（见 lib/growth.ts），所以这一页不需要
+ * 为任何一株多查一次时间线。
  */
 export default async function MePage({ searchParams }: MePageProps) {
   const { error } = await searchParams
@@ -55,6 +55,7 @@ export default async function MePage({ searchParams }: MePageProps) {
         title="你真正和别人完成过什么"
         stage={finished[0] ? stageOf(finished[0].state) : 'seed'}
         artifacts={finished[0]?.artifactCount ?? 0}
+        showMeaning={false}
         meta={[person.displayName, `长成 ${finished.length} 株`, `切面 ${facets.length} 条`]}
       >
         <p className="max-w-xl text-sm leading-relaxed opacity-90">

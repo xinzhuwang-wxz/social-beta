@@ -25,6 +25,7 @@ export function ColorField({
   stage,
   artifacts = 0,
   compact = false,
+  showMeaning = true,
 }: {
   eyebrow?: string
   title: ReactNode
@@ -36,12 +37,25 @@ export function ColorField({
   stage?: GrowthStage
   artifacts?: number
   compact?: boolean
+  /**
+   * 标题下要不要跟一句「这个阶段是什么意思」。
+   *
+   * 只有当标题本身就是阶段名（行动房间）时才成立。列表页的标题是
+   * 「2 件事在长」，再跟一句「有人确认了，破土」就变成了在解释
+   * 一株没被指名的植物 —— 那句话此时不对应画面上的任何东西。
+   */
+  showMeaning?: boolean
 }) {
   return (
-    <section
-      className={`bg-field text-field-ink ${compact ? 'px-5 py-6 sm:px-7 sm:py-7' : 'px-5 py-8 sm:px-8 sm:py-10'}`}
-    >
-      <div className={`flex flex-col gap-6 ${stage ? 'sm:flex-row sm:items-center sm:gap-8' : ''}`}>
+    <section className={`bg-field text-field-ink ${compact ? 'py-6 sm:py-7' : 'py-8 sm:py-10'}`}>
+      {/* 色域本身通栏出血，里面的内容仍然对齐页面的正文栏宽 ——
+          否则色域上的字和它下面的看板会差出十几像素，那种错位很难看出原因，
+          但会让整页显得没对齐。 */}
+      <div
+        className={`mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 sm:px-8 ${
+          stage ? 'sm:flex-row sm:items-center sm:gap-8' : ''
+        }`}
+      >
         {stage && (
           <PoolPlant
             stage={stage}
@@ -63,7 +77,7 @@ export function ColorField({
           >
             {title}
           </div>
-          {stage && (
+          {stage && showMeaning && (
             <p className="mt-2 text-sm opacity-80">{STAGE_MEANING[stage]}</p>
           )}
 
