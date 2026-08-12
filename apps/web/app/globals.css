@@ -1,31 +1,17 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   设计令牌：种子 — 植物 — 森林
+   设计令牌 · 《前端视觉设计规范 v1.0》
    --------------------------------------------------------------------------
-   参照 Forest（专注森林），但抄的不是它的绿，是它构图上的胆量：
-   主屏 72% 的像素是一块纯色，中间一个圆，圆里一个土丘配两片叶子 ——
-   让色彩承担全部情绪，插画只做状态指示。所以这套 token 分成两层：
+   风格定位：清爽水彩 × 手绘家园 × 轻游戏化社交产品。
 
-   ── 第一层：安静的编辑区（页面 80% 以上的面积）
-     地与墨（surface / ink / border）—— 暖中性的浅灰 + 暖调深墨。
-       几乎没有彩度，这是全站「安静」的来源，也是下面两个颜色敢用力的前提。
+     世界是手绘的，交互是清晰的
+     情绪是柔和的，信息层级必须明确
+     有游戏感，但不能像儿童农场游戏
 
-     森林绿（accent）—— **活着**。插画的活体部分、链接、主按钮。
-       它是这个产品的颜色：一件事还在长，就用绿说话。
-
-     朱（seal）—— 全站唯一的高饱和强调，只用在两处：
-       树上开的花，和四条红线。用量越少，出现时越有分量。
-
-     土（soil）—— 地面以下与土丘。唯一的暖色相，让整套色不至于变成一堆绿。
-
-   ── 第二层：主色域（每一屏一块）
-     field / field-ink / disc —— 一块占绝对面积的纯色 + 圆 + 圆里的植物。
-       它是这一屏的情绪。白底上撒卡片是安全的，也是没有表情的。
-
-   刻意不做的事：不堆叶子图标、不让绿铺满整页（那会和「校园社交」的语境打架）、
-   不做暖米色 + 衬线 + 赭石那套「AI 生成落地页」的标配。
-   圆角只在色域里的 pill 上出现一次，其余一律方角。
+   色值全部来自规范，不自行调配。唯一一处例外在下面 --accent-deep 处
+   注明了理由与实测对比度 —— 规范的主操作绿配规范的按钮文字只有 3.03:1，
+   低于正文级 4.5:1，直接用会让每一个主按钮的标签都不达标。
 
    三态深浅色规则（不可破坏）：
    1. 完整的浅色调色板只在裸 :root 里定义一次，这是唯一真相源。
@@ -34,192 +20,201 @@
    3. 用户显式选了深色（data-theme="dark"，由 ThemeToggle 写入）时，
       :root[data-theme="dark"] 再覆盖一遍同一批 token —— 不管系统是什么颜色，
       显式选择永远优先。
-   任何 token 都不允许只在 media 或 [data-theme] 块里出现 —— 那样会导致
-   「浅色用户从没见过 dark 分支定义、也就没人会发现它其实漏了一个 token」
-   这种经典 bug。三个块里的 token 名集合必须完全一致，只是取值不同。
+   任何 token 都不允许只在 media 或 [data-theme] 块里出现。
+   规范只给了浅色值；深色是同一座花园入夜，色相不变、明度对调。
    ========================================================================== */
 
 :root {
   color-scheme: light;
 
-  /* 地：暖中性的浅灰，几乎没有彩度。
-     它必须够安静 —— 全站唯一饱和的两个颜色（森林绿、朱）才有力气说话。
-     刻意压住黄味：暖米色 + 衬线 + 赭石那一套是「AI 生成落地页」的标配，
-     我们要的是暖，不是那股味道。 */
-  --surface: #f0efe9;
-  --surface-alt: #e5e3da; /* 次级表面：分区底、表头、精灵的卡片 */
-  --surface-raised: #faf9f5; /* 浮起：卡片、输入框所在的那一层 */
+  /* 页面与卡片 */
+  --surface: #f7f0de; /* 页面暖白：带暖黄的纸张感，不是纯白 */
+  --surface-alt: #fbf4e3; /* 高亮暖白 */
+  --surface-raised: #fff9eb; /* Card 背景 */
 
-  /* 墨：带暖调的深色，不是纯黑 —— 纯黑压在暖灰上会显得脏 */
-  --ink: #1b1a16;
-  --ink-muted: #4a4842;
-  --ink-soft: #5f5c54; /* 小字用它排正文也要过 AA：在 surface 上 5.6:1 */
+  /* 世界（只给插画用，不做大面积 UI 底色） */
+  --grass: #ccd56f; /* 草地主色 */
+  --grass-far: #b8c88a; /* 远景浅绿 */
+  --water: #75bad3; /* 水蓝，极少量 —— 别让蓝成为主色 */
 
-  --border: #d4d1c7;
-  --border-strong: #a5a196;
+  /* 品牌与操作 */
+  --brand: #4d572e; /* 深橄榄绿：Logo、一级标题、重要图标 */
+  --accent: #89974b; /* 主操作绿：色块、描边、世界里的绿 */
+  /* 承载文字的按钮底色。规范的 #89974B 配 #FFF9EA 实测 3.03:1，
+     不到正文级 4.5:1；取规范自己那条色阶上更深的一档 #6C7937（4.52:1）。
+     色相与规范一致，只是把明度压到能读。 */
+  --accent-deep: #6c7937;
+  --accent-hover: #5f6b30;
+  --accent-pressed: #55612b;
+  --accent-soft: #dce3ae; /* 浅绿状态：hover 底、标签、AI 信息块 */
+  --accent-ink: #fff9ea; /* 按钮文字 */
 
-  /* 森林绿：插画、链接、主按钮。它就是「活着」的意思 */
-  --accent: #245c3f;
-  --accent-strong: #18452f;
-  --accent-soft: #dde7de;
-  --accent-ink: #f4f8f2;
+  /* 木质与土 */
+  --wood: #b98c50;
+  --wood-dark: #865f32;
+  --wood-light: #d7b67a;
+  --soil: #a9753d; /* 种子土色，不大面积铺 */
 
-  /* 朱：全站唯一的高饱和强调。只用在两处 ——
-     树上开的花，和四条红线。别的地方一律不许碰它，
-     它出现得越少，出现时越有分量。 */
-  --seal: #9e3520;
-  --seal-strong: #7d2917;
-  --seal-soft: #f0dcd4;
-  --seal-ink: #fdf3ee;
+  /* 提醒。仅 badge —— 规范明确禁止拿它当主按钮色 */
+  --alert: #d8613e;
 
-  /* 土：地平线以下。种子、土丘、落籽 */
-  --soil: #6b5a45;
-  --soil-soft: #ded7c8;
+  /* 文字。规范给了四档，但后两档在页面暖白上分别只有 2.71:1 和 1.93:1，
+     达不到正文对比度 —— 所以它们在本实现里只承担装饰与禁用态，
+     任何需要被读的文字最低用到 --ink-muted（5.17:1）。 */
+  --ink: #333524; /* 11.0:1 */
+  --ink-muted: #66664e; /* 5.17:1，最小的可读级 */
+  --ink-soft: #99937a; /* 2.71:1 —— placeholder、禁用、分隔 */
+  --ink-faint: #b7af96; /* 1.93:1 —— 纯装饰 */
 
-  /* 主色域：每一屏都有一块占绝对面积的纯色。
-     这是从 Forest 抄来的唯一一件事 —— 不是它的绿，是它敢把七成屏幕
-     交给一块纯色、让色彩承担全部情绪，插画只做状态指示。
-     白底上撒卡片是安全的，也是没有表情的。 */
-  --field: #35785a;
-  --field-ink: #f4f8f2; /* 色域上的文字。对 --field 至少 5:1 */
-  /* 聚焦圆：植物长在这个圆里。圆是舞台，不是装饰。 */
-  --disc: #e6e4ab;
+  --border: rgba(86, 84, 59, 0.12);
+  --border-strong: rgba(86, 84, 59, 0.28);
 
-  --focus: #245c3f;
+  --focus: #6c7937;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    /* 深色不是「浅色反转」，是同一片林子入夜：绿更亮、土更暖、地变成林下的暗。
-       注意色域在深色下**没有退化成深灰** —— 「一块主色域」是结构，不是浅色态的装饰。 */
-    --surface: #141410;
-    --surface-alt: #1c1c16;
-    --surface-raised: #21211a;
+    --surface: #21201a;
+    --surface-alt: #262520;
+    --surface-raised: #2a2921;
 
-    --ink: #eae8df;
-    --ink-muted: #a8a498;
-    --ink-soft: #807c70;
+    --grass: #6c7740;
+    --grass-far: #4e5a38;
+    --water: #4c7f92;
 
-    --border: #2e2e26;
-    --border-strong: #474437;
+    --brand: #c7d18a;
+    --accent: #a8b865;
+    --accent-deep: #a8b865;
+    --accent-hover: #b9c877;
+    --accent-pressed: #97a758;
+    --accent-soft: #333a20;
+    --accent-ink: #1b1d12;
 
-    --accent: #6fbb8b;
-    --accent-strong: #95d6ac;
-    --accent-soft: #1a3324;
-    --accent-ink: #08150d;
+    --wood: #c69a5f;
+    --wood-dark: #a2743f;
+    --wood-light: #dcbe88;
+    --soil: #bb8a52;
 
-    --seal: #e0785a;
-    --seal-strong: #ee9174;
-    --seal-soft: #361a10;
-    --seal-ink: #180a05;
+    --alert: #e8805f;
 
-    --soil: #a08a68;
-    --soil-soft: #241d13;
+    --ink: #ede8d8;
+    --ink-muted: #bdb89f;
+    --ink-soft: #8e8a74;
+    --ink-faint: #6b6857;
 
-    --field: #1e4d3a;
-    --field-ink: #eaf2ec;
-    --disc: #2a241b;
+    --border: rgba(233, 228, 200, 0.14);
+    --border-strong: rgba(233, 228, 200, 0.3);
 
-    --focus: #6fbb8b;
+    --focus: #a8b865;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --surface: #141410;
-  --surface-alt: #1c1c16;
-  --surface-raised: #21211a;
+  --surface: #21201a;
+  --surface-alt: #262520;
+  --surface-raised: #2a2921;
 
-  --ink: #eae8df;
-  --ink-muted: #a8a498;
-  --ink-soft: #807c70;
+  --grass: #6c7740;
+  --grass-far: #4e5a38;
+  --water: #4c7f92;
 
-  --border: #2e2e26;
-  --border-strong: #474437;
+  --brand: #c7d18a;
+  --accent: #a8b865;
+  --accent-deep: #a8b865;
+  --accent-hover: #b9c877;
+  --accent-pressed: #97a758;
+  --accent-soft: #333a20;
+  --accent-ink: #1b1d12;
 
-  --accent: #6fbb8b;
-  --accent-strong: #95d6ac;
-  --accent-soft: #1a3324;
-  --accent-ink: #08150d;
+  --wood: #c69a5f;
+  --wood-dark: #a2743f;
+  --wood-light: #dcbe88;
+  --soil: #bb8a52;
 
-  --seal: #e0785a;
-  --seal-strong: #ee9174;
-  --seal-soft: #361a10;
-  --seal-ink: #180a05;
+  --alert: #e8805f;
 
-  --soil: #a08a68;
-  --soil-soft: #241d13;
+  --ink: #ede8d8;
+  --ink-muted: #bdb89f;
+  --ink-soft: #8e8a74;
+  --ink-faint: #6b6857;
 
-  --field: #1e4d3a;
-  --field-ink: #eaf2ec;
-  --disc: #2a241b;
+  --border: rgba(233, 228, 200, 0.14);
+  --border-strong: rgba(233, 228, 200, 0.3);
 
-  --focus: #6fbb8b;
+  --focus: #a8b865;
 }
 
 /* --------------------------------------------------------------------------
-   把上面的原始 token 接进 Tailwind v4 的主题系统。
-   用 @theme inline（而不是把值抄进来）是关键：Tailwind 生成的工具类里保留的
-   是 var(--surface) 这样的引用，色值仍然由上面三个块在运行时决定。
-   如果这里直接写死颜色，三态切换就会失效。
+   接进 Tailwind v4。用 @theme inline 保留 var() 引用，
+   色值仍由上面三个块在运行时决定；这里写死颜色三态切换就会失效。
    -------------------------------------------------------------------------- */
 @theme inline {
   --color-surface: var(--surface);
   --color-surface-alt: var(--surface-alt);
   --color-surface-raised: var(--surface-raised);
 
-  --color-ink: var(--ink);
-  --color-ink-muted: var(--ink-muted);
-  --color-ink-soft: var(--ink-soft);
+  --color-grass: var(--grass);
+  --color-grass-far: var(--grass-far);
+  --color-water: var(--water);
 
-  --color-border: var(--border);
-  --color-border-strong: var(--border-strong);
-
+  --color-brand: var(--brand);
   --color-accent: var(--accent);
-  --color-accent-strong: var(--accent-strong);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-pressed: var(--accent-pressed);
   --color-accent-soft: var(--accent-soft);
   --color-accent-ink: var(--accent-ink);
 
-  --color-seal: var(--seal);
-  --color-seal-strong: var(--seal-strong);
-  --color-seal-soft: var(--seal-soft);
-  --color-seal-ink: var(--seal-ink);
-
+  --color-wood: var(--wood);
+  --color-wood-dark: var(--wood-dark);
+  --color-wood-light: var(--wood-light);
   --color-soil: var(--soil);
-  --color-soil-soft: var(--soil-soft);
 
-  --color-field: var(--field);
-  --color-field-ink: var(--field-ink);
-  --color-disc: var(--disc);
+  --color-alert: var(--alert);
 
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-focus: var(--focus);
 
-  /* 中文编辑排版的经典配对：正文黑体栈 / 标题宋体栈，全部是系统自带字体，
-     不加载任何 webfont —— 校园场景的手机网络不该为字体花一次首屏加载。
+  /* 圆角。规范：Small 10 / Medium 16 / Large 22 / Bottom Sheet 28 / Pill 999。
+     「不要锋利矩形」是硬要求，所以这里不提供 0 这一档。 */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-sheet: 28px;
+  --radius-pill: 999px;
 
-     第三条 --font-mark 是标本册的语言：编号、刻度、计数、阶段代号。
-     等宽字形让数字对齐成一列，也让「01 / 02」这类章节标记有版式重量 ——
-     这正是不用 emoji 做章节标记的替代方案。 */
+  /* 字体。
+     正文用 Noto Sans SC（思源黑体）；霞鹜文楷只用于 Agent 气泡、
+     花园里的事件名、共同回忆标题这类情绪性文案 —— 规范明确禁止大段正文用手写体。
+
+     两个字体栈都以系统已装字体收尾：校园场景在手机弱网下打开，
+     不该为字形先花掉一次首屏加载。装了 Noto / 霞鹜的设备自动用上，
+     没装的退到 PingFang / 楷体，字重与气质仍然对得上。 */
   --font-sans:
-    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-head:
-    "Songti SC", "Noto Serif CJK SC", "Noto Serif SC", STSong, SimSun, serif;
-  --font-mark:
-    ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas,
-    "PingFang SC", monospace;
+    "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    system-ui, -apple-system, sans-serif;
+  --font-hand:
+    "LXGW WenKai", "LXGW WenKai Screen", "Kaiti SC", STKaiti, KaiTi,
+    "Noto Serif SC", serif;
+
+  /* 动效时长。规范：UI 180–280ms，世界 400–1000ms，植物成长 800–1600ms */
+  --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-spring: cubic-bezier(0.34, 1.24, 0.64, 1);
 }
 
 /* ==========================================================================
    基础样式
    ========================================================================== */
-
-* {
-  border-color: var(--border);
-}
 
 html {
   -webkit-text-size-adjust: 100%;
@@ -231,24 +226,14 @@ body {
   background: var(--surface);
   color: var(--ink);
   font-family: var(--font-sans);
-  /* 中文正文需要比拉丁文更松的行距才不结块；1.75 是长段落的舒适下限。 */
-  line-height: 1.75;
+  font-size: 16px;
+  /* 规范：Body 15–16，行高 1.55–1.65 */
+  line-height: 1.6;
   min-height: 100dvh;
   /* 移动端浏览器场景：任何一处子元素撑宽都不该产生整页横向滚动。 */
   overflow-x: hidden;
-  /* 中日文全角标点两侧的空档收紧一半，不支持的浏览器直接忽略这条。 */
+  /* 中日文全角标点两侧的空档收紧，不支持的浏览器直接忽略这条。 */
   text-spacing-trim: trim-start;
-}
-
-h1,
-h2,
-h3,
-h4 {
-  font-family: var(--font-head);
-  font-weight: 600;
-  /* 宋体标题字面偏小、笔画细，稍紧的字距和更紧的行距才立得住 */
-  letter-spacing: 0.01em;
-  line-height: 1.35;
 }
 
 a {
@@ -265,86 +250,203 @@ a {
   overflow-wrap: anywhere;
 }
 
-/* 跳转链接：默认藏在视口外，聚焦时移入视口 —— 键盘用户的第一个可达目标。 */
+/* 跳转链接：默认藏在视口外，聚焦时移入 —— 键盘用户的第一个可达目标。 */
 .skip-link {
   position: fixed;
   top: 0.5rem;
   left: 0.5rem;
   z-index: 100;
   transform: translateY(-150%);
-  transition: transform 150ms ease;
+  transition: transform 200ms var(--ease-soft);
 }
 
 .skip-link:focus-visible {
   transform: translateY(0);
 }
 
-/* 焦点态：全站统一，不依赖每个组件各自实现。
-   只在 :focus-visible 生效，鼠标点击不会出现多余的环。 */
+/* 焦点态：全站统一，不依赖每个组件各自实现。 */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
+  border-radius: var(--radius-sm);
 }
 
 /* --------------------------------------------------------------------------
-   版式基元
+   字号层级（规范给的六档）
+   写成类而不是散落在各处的 text-xx：六个页面共用同一套层级，
+   改一次全站生效，也让「这行字是第几级」在代码里是显式的。
+   -------------------------------------------------------------------------- */
+.t-h1 {
+  font-size: 1.75rem; /* 28 */
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  color: var(--brand);
+}
+@media (min-width: 640px) {
+  .t-h1 {
+    font-size: 2rem; /* 32 */
+  }
+}
+
+.t-h2 {
+  font-size: 1.375rem; /* 22 */
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--brand);
+}
+@media (min-width: 640px) {
+  .t-h2 {
+    font-size: 1.5rem; /* 24 */
+  }
+}
+
+.t-h3 {
+  font-size: 1.125rem; /* 18 */
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.t-sec {
+  font-size: 0.875rem; /* 14 */
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+.t-cap {
+  font-size: 0.75rem; /* 12 */
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+/* 情绪性文案：Agent 气泡、花园里的事件名、共同回忆标题。
+   只在这三处用手写体 —— 大段正文用它会显著拖慢阅读。 */
+.t-hand {
+  font-family: var(--font-hand);
+  letter-spacing: 0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   基元：卡片 / 按钮 / pill / badge
    -------------------------------------------------------------------------- */
 
-/* 标本册的页边标注：编号、阶段代号、计数。等宽 + 加宽字距 + 全大写。
-   全站的「小标签」只有这一种写法，不允许每处自己发明一套。 */
-.mark {
-  font-family: var(--font-mark);
-  font-size: 0.6875rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  /* 阴影极轻：规范要的是纸面感，不是悬浮的 Material 卡片 */
+  box-shadow:
+    0 1px 2px rgba(86, 84, 59, 0.05),
+    0 6px 18px rgba(86, 84, 59, 0.04);
+}
+
+/* 行动确认卡：比普通卡片更正式 —— 这是「从聊天进入真正承诺」的那一步，
+   所以它用实心品牌描边而不是极淡的边，但仍然不做得可爱。 */
+.card-formal {
+  background: var(--surface-raised);
+  border: 1.5px solid var(--accent-deep);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 4px rgba(86, 84, 59, 0.07);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: var(--radius-pill);
+  padding: 0.625rem 1.25rem;
+  font-size: 1rem; /* 16 */
+  font-weight: 600;
   line-height: 1.4;
+  transition:
+    background-color 220ms var(--ease-soft),
+    border-color 220ms var(--ease-soft),
+    transform 220ms var(--ease-spring);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
-/* 主色域上的大字：黑体细体、字号大、字距松。
-   刻意和正文区的宋体标题分成两个语域 ——
-   色域是情绪，正文区是编辑。两种语气混在一起会互相削弱。 */
-.field-title {
-  font-family: var(--font-sans);
-  font-weight: 300;
-  letter-spacing: 0.08em;
-  line-height: 1.3;
+.btn-primary {
+  background: var(--accent-deep);
+  color: var(--accent-ink);
+  border: 1px solid var(--accent-deep);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn-primary:active:not(:disabled) {
+  background: var(--accent-pressed);
 }
 
-/* 元数据 pill。全站唯一允许圆角的地方：
-   方角是本站的语言，而 pill 是色域上那套语言的一部分，
-   它出现在色域里正好把两个语域分开，不会互相污染。 */
+.btn-secondary {
+  background: transparent;
+  color: var(--accent-deep);
+  border: 1.5px solid var(--accent-deep);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.btn-quiet {
+  background: transparent;
+  color: var(--ink-muted);
+  border: 1px solid var(--border-strong);
+}
+.btn-quiet:hover:not(:disabled) {
+  background: var(--surface-alt);
+  color: var(--ink);
+}
+
+.btn-sm {
+  padding: 0.375rem 0.875rem;
+  font-size: 0.875rem;
+}
+
+/* 标签 pill。状态、计数、元数据。 */
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  border-radius: 999px;
-  padding: 0.25rem 0.7rem;
-  font-size: 0.75rem;
+  border-radius: var(--radius-pill);
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
-  background: color-mix(in srgb, var(--field-ink) 16%, transparent);
-  color: var(--field-ink);
+  background: var(--accent-soft);
+  color: var(--brand);
 }
 
-/* pill 里的琥珀色圆点 —— Forest 用它标一条元数据的「类别」。
-   这里只在需要区分两三条元数据时才用，不做成每个 pill 都有的装饰。 */
-.pill-dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 999px;
-  background: var(--disc);
-  flex-shrink: 0;
+/* 提醒 badge。橙红只出现在这里 —— 规范禁止它做主按钮色。 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  border-radius: var(--radius-pill);
+  padding: 0.05rem 0.4rem;
+  background: var(--alert);
+  color: #fff9ea;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 /* --------------------------------------------------------------------------
    动效
-   全站只有两处动画：首屏一次性入场、植物一次性生长。
-   没有循环动画、没有滚动视差 —— 状态指示器不该抢注意力。
+   规范：慢、柔和、有弹性。不要高频 bounce、夸张 zoom、大面积闪光。
    -------------------------------------------------------------------------- */
 
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -352,47 +454,50 @@ a {
   }
 }
 
+/* 世界动画：400–1000ms */
 .animate-rise-in {
-  animation: rise-in 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: rise-in 700ms var(--ease-soft) both;
 }
 
-/* 植物出场：茎沿路径「长」出来。用 stroke-dashoffset 而不是 scaleY，
-   因为 scaleY 会把叶片也压扁，看起来像被拉伸的贴图，不像生长。 */
-@keyframes stem-draw {
-  from {
-    stroke-dashoffset: var(--stem-length, 60);
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-.animate-stem {
-  stroke-dasharray: var(--stem-length, 60);
-  animation: stem-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/* 叶与花在茎长完之后才淡入，顺序对了才像生长而不像同时出现 */
-@keyframes bloom-in {
+/* 植物成长：800–1600ms，从土里顶出来，带一点回弹 */
+@keyframes grow-up {
   from {
     opacity: 0;
-    transform: scale(0.82);
+    transform: translateY(8px) scale(0.86);
+  }
+  60% {
+    opacity: 1;
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
-.animate-bloom {
+.animate-grow {
   transform-box: fill-box;
-  transform-origin: center;
-  animation: bloom-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: bottom center;
+  animation: grow-up 1200ms var(--ease-spring) both;
 }
 
-/* prefers-reduced-motion：全局兜底，之后任何组件新增的动效都自动被这条压平，
-   不需要每处动画各自记得加媒体查询。注意 stroke-dashoffset 被压到 0 之后
-   植物是完整可见的静态图 —— 减少动效不等于丢失信息。 */
+/* 信使鸟落地时轻轻一沉。世界动画区间，不做高频 bounce。 */
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-settle {
+  animation: settle 620ms var(--ease-spring) both;
+}
+
+/* prefers-reduced-motion：全局兜底，之后任何组件新增的动效都自动被这条压平。
+   植物被压平后仍是完整可见的静态图 —— 减少动效不等于丢失信息。 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -63,6 +63,15 @@ import {
   type DueReminder,
 } from './reminder-service'
 import { isActiveNow, recomputeResponsiveness } from './responsiveness-service'
+import {
+  chooseCompanion,
+  deliverSeed,
+  replyToSeed,
+  seedInbox,
+  willingFor,
+  type InboxItem,
+  type WillingCandidate,
+} from './delivery-service'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -539,6 +548,15 @@ export class PoolEngine {
    *
    * 决策是纯函数（不写库、不打模型），只有真的需要发卡时才付代价 ——
    * 而按 ADR-0004，active 阶段绝大多数时候的正确答案是沉默。
+   */
+  /**
+   * 用户点「推进」按钮时才调用。
+   *
+   * PRD v2 阶段五明确：首版由用户主动请求 AI 帮助，一次只处理眼前一个卡点，
+   * 不主动频繁插话。原设计里 active 阶段冷场超阈值就自动发卡 ——
+   * 那正是 PRD 说的「后续可增加的非打扰式提示」，不该在首版就默认打开。
+   *
+   * forming 阶段的破冰仍是主动的（阶段四），且只主动一次。
    */
   async tickSpirit(poolId: string): Promise<InterventionDecision> {
     return this.asSystem(async (tx) => {
@@ -1106,6 +1124,125 @@ export class PoolEngine {
         nextHook: pool.nextHook,
         nextStep: nextStepFor(pool.state as PoolState, plan, invited.length),
       }
+    })
+  }
+
+  // ==========================================================
+  // 投递制：种子发给多人，候选先表态，发起人在愿意的人里选
+  // ==========================================================
+
+  /**
+   * 把一颗种子投递出去。
+   *
+   * 候选来自匹配漏斗，但**投递不等于推荐** —— 候选人在信箱里看到的是这颗种子
+   * 本身，不是「系统觉得你合适」。推荐理由与打分只给发起人看。
+   */
+  async deliverSeed(actor: ActorContext, intentId: string): Promise<{ delivered: number }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+
+    const candidates = await this.refreshCandidates(actor, intentId)
+    const delivered = await this.asSystem((tx) => deliverSeed(tx, intentId, candidates))
+    return { delivered }
+  }
+
+  /** 我的种子信箱。走视图 —— 它在 SQL 层就不含推荐理由与打分。 */
+  async seedInbox(actor: ActorContext): Promise<InboxItem[]> {
+    return this.act(actor, (tx) => seedInbox(tx))
+  }
+
+  /** 表态：愿意参与（可附一句留言）或暂不感兴趣。 */
+  async replyToSeed(
+    actor: ActorContext,
+    intentId: string,
+    willing: boolean,
+    note?: string,
+  ): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.asSystem(async (tx) => {
+      await replyToSeed(tx, intentId, me.id, willing, note)
+      // 表态本身就是回应信号，立刻重算 —— 这是 responsiveness 最直接的来源
+      await recomputeResponsiveness(tx, me.id)
+    })
+  }
+
+  /** 已表达愿意的人。只有发起人调得到。 */
+  async willingFor(actor: ActorContext, intentId: string): Promise<WillingCandidate[]> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    return this.asSystem(async (tx) => {
+      const [own] = await tx<{ personId: string }[]>`
+        select person_id as "personId" from intent where id = ${intentId}
+      `
+      if (own?.personId !== me.id) throw new Error('无权查看他人种子的回应')
+      return willingFor(tx, intentId)
+    })
+  }
+
+  /**
+   * 选中一个同行者并成局。
+   *
+   * PRD 写的是「亲自选择一名」，但那与种子自己的「需要多少人」矛盾 ——
+   * 四个人的爬山局要选三个。按需要人数收满为止。
+   *
+   * 第一个被选中的人触发建池；之后的人直接进同一个池塘。
+   */
+  async chooseCompanion(
+    actor: ActorContext,
+    intentId: string,
+    personId: string,
+    opening: string,
+  ): Promise<{ poolId: string; filled: boolean }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    const firstWords = opening.trim()
+    if (firstWords.length === 0) throw new Error('第一句话不能为空')
+
+    return this.asSystem(async (tx) => {
+      const [intent] = await tx<
+        { personId: string; domain: string | null; rawText: string; poolId: string | null }[]
+      >`
+        select person_id as "personId", domain, raw_text as "rawText", pool_id as "poolId"
+        from intent where id = ${intentId}
+      `
+      if (intent?.personId !== me.id) throw new Error('无权处置他人的种子')
+
+      const result = await chooseCompanion(tx, intentId, personId)
+
+      // 已经有池塘就直接加人，否则建一个
+      let poolId = intent.poolId
+      if (!poolId) {
+        const [pool] = await tx<{ id: string }[]>`
+          insert into pool (kind, state, campus_id, domain, title)
+          values ('activity', 'forming', ${me.campusId}, ${intent.domain}, ${intent.rawText})
+          returning id
+        `
+        if (!pool) throw new Error('池塘创建失败')
+        poolId = pool.id
+        await tx`
+          insert into membership (pool_id, person_id, role, state)
+          values (${poolId}, ${me.id}, 'initiator', 'joined')
+        `
+        await tx`update intent set pool_id = ${poolId} where id = ${intentId}`
+        await tx`
+          insert into episode (pool_id, kind, summary, actor_id)
+          values (${poolId}, 'opening', ${firstWords}, ${me.id})
+        `
+      }
+
+      // 被选中的人直接 joined —— 他已经表达过「愿意参与」，
+      // 再要求他确认一次是把同一个决定问两遍
+      await tx`
+        insert into membership (pool_id, person_id, role, state)
+        values (${poolId}, ${personId}, 'participant', 'joined')
+        on conflict (pool_id, person_id) do update set state = 'joined', joined_at = now()
+      `
+      await tx`
+        insert into episode (pool_id, kind, summary, actor_id)
+        values (${poolId}, 'joined', '成局', ${personId})
+      `
+      return { poolId, filled: result.filled }
     })
   }
 
