@@ -1,1 +1,5 @@
 export * from './pool-engine.js'
+export type { Candidate } from './matcher-service.js'
+export { stageFor, DAILY_EXPOSURE_CAP } from './matcher-service.js'
+export type { RehearsalResult } from './rehearsal-service.js'
+export type { RehearsalRecord } from './takeover-service.js'

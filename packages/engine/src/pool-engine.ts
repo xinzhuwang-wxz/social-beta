@@ -9,6 +9,13 @@ import {
   type IntentRecord,
 } from './intent-service.js'
 import { findCandidates, type Candidate } from './matcher-service.js'
+import { disclosureProfileFor, rehearse, type RehearsalResult } from './rehearsal-service.js'
+import {
+  confirmJoin,
+  leavePool,
+  takeOver,
+  type RehearsalRecord,
+} from './takeover-service.js'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -185,6 +192,147 @@ export class PoolEngine {
         { id: intent.id, rawText: intent.rawText },
       )
     })
+  }
+
+  // ==========================================================
+  // 预演与接管
+  // ==========================================================
+
+  /**
+   * 对某个候选跑一次预演，产出提案卡与往来记录。
+   *
+   * 按需触发（用户点开某张候选卡时），不随候选列表批量生成 ——
+   * 一次匹配返回 3–5 张卡，每张都跑预演就是几十次模型调用。
+   *
+   * 可披露视图在 act 事务内构造，让 RLS 的 facet_read_disclosable 决定
+   * 哪些切面可见。private 切面在 SQL 层就取不到。
+   */
+  async rehearseWith(
+    actor: ActorContext,
+    input: { seekerIntentId: string; candidateIntentId: string },
+  ): Promise<RehearsalResult & { rehearsalId: string }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+
+    const { seekerProfile, candidateProfile, seekerIntent, candidateIntent, candidateId } =
+      await this.act(actor, async (tx) => {
+        const [mine] = await tx<{ rawText: string; personId: string }[]>`
+          select raw_text as "rawText", person_id as "personId"
+          from intent where id = ${input.seekerIntentId}
+        `
+        if (!mine || mine.personId !== me.id) throw new Error('无权使用他人的意图发起预演')
+
+        const [theirs] = await tx<{ rawText: string; personId: string }[]>`
+          select raw_text as "rawText", person_id as "personId"
+          from intent where id = ${input.candidateIntentId}
+        `
+        if (!theirs) throw new Error('候选意图不存在或不可见')
+
+        return {
+          seekerProfile: await disclosureProfileFor(tx, me.id),
+          candidateProfile: await disclosureProfileFor(tx, theirs.personId),
+          seekerIntent: mine.rawText,
+          candidateIntent: theirs.rawText,
+          candidateId: theirs.personId,
+        }
+      })
+
+    const result = await rehearse(
+      { sql: this.deps.sql, model: this.deps.model },
+      { profile: seekerProfile, intent: seekerIntent },
+      { profile: candidateProfile, intent: candidateIntent },
+    )
+
+    const [row] = await this.asSystem(
+      (tx) => tx<{ id: string }[]>`
+        insert into rehearsal (seeker_id, candidate_id, seeker_intent, candidate_intent, proposal, transcript)
+        values (${me.id}, ${candidateId}, ${input.seekerIntentId}, ${input.candidateIntentId},
+                ${this.deps.sql.json(result.proposal as never)},
+                ${this.deps.sql.json(result.transcript as never)})
+        returning id
+      `,
+    )
+    if (!row) throw new Error('预演记录写入失败')
+    return { ...result, rehearsalId: row.id }
+  }
+
+  /**
+   * 接管 —— 真人签字，连接才成立。
+   *
+   * opening 由调用方传入：可能是草稿原文、改过的、或用户完全自己写的。
+   * 引擎不关心它来自哪里，只关心它是**真人提交的**。
+   */
+  async takeOver(
+    actor: ActorContext,
+    input: { rehearsalId: string; opening: string },
+  ): Promise<{ poolId: string }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    const opening = input.opening.trim()
+    if (opening.length === 0) throw new Error('第一句话不能为空')
+
+    return this.asSystem(async (tx) => {
+      const [r] = await tx<
+        { seekerId: string; candidateId: string; proposal: unknown; takenOverAt: Date | null }[]
+      >`
+        select seeker_id as "seekerId", candidate_id as "candidateId",
+               proposal, taken_over_at as "takenOverAt"
+        from rehearsal where id = ${input.rehearsalId}
+      `
+      if (!r) throw new Error('预演记录不存在')
+      // 只有预演的发起者本人能接管。缺了这一条，任何人都能拿别人的预演开池塘。
+      if (r.seekerId !== me.id) throw new Error('无权接管他人的预演')
+      if (r.takenOverAt) throw new Error('这次预演已经接管过了')
+
+      return takeOver(tx, {
+        seekerId: me.id,
+        candidateId: r.candidateId,
+        campusId: me.campusId,
+        rehearsalId: input.rehearsalId,
+        proposal: r.proposal as Parameters<typeof takeOver>[1]['proposal'],
+        opening,
+      })
+    })
+  }
+
+  /** 我收到的、尚未确认的邀请。 */
+  async myInvites(actor: ActorContext): Promise<{ poolId: string; title: string | null; invitedAt: Date }[]> {
+    const me = await this.currentPerson(actor)
+    if (!me) return []
+    return this.act(
+      actor,
+      (tx) => tx<{ poolId: string; title: string | null; invitedAt: Date }[]>`
+        select m.pool_id as "poolId", p.title, m.invited_at as "invitedAt"
+        from membership m join pool p on p.id = m.pool_id
+        where m.person_id = ${me.id} and m.state = 'invited'
+        order by m.invited_at desc
+      `,
+    )
+  }
+
+  /** 确认加入。不确认就是不合适 —— 系统不需要知道原因。 */
+  async confirmJoin(actor: ActorContext, poolId: string): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    return this.asSystem((tx) => confirmJoin(tx, poolId, me.id))
+  }
+
+  /** 退出池塘。聊下来发现不合适再走，是正常流程。 */
+  async leavePool(actor: ActorContext, poolId: string): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    return this.asSystem((tx) => leavePool(tx, poolId, me.id))
+  }
+
+  /** 我发起过的预演，供查看「我的 Agent 替我说了什么」。 */
+  async myRehearsals(actor: ActorContext): Promise<RehearsalRecord[]> {
+    return this.act(
+      actor,
+      (tx) => tx<RehearsalRecord[]>`
+        select id, proposal, transcript, taken_over_at as "takenOverAt"
+        from rehearsal order by created_at desc limit 50
+      `,
+    )
   }
 
   /** 连接健康检查。用于启动自检与测试 harness。 */
