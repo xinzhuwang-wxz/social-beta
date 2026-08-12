@@ -1,0 +1,23 @@
+{
+  "name": "@pool/seed",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "simulate": "tsx simulate.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pool/db": "workspace:*",
+    "@pool/engine": "workspace:*",
+    "@pool/model": "workspace:*",
+    "@pool/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

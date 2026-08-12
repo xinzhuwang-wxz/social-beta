@@ -16,7 +16,8 @@
     "db:stop": "supabase stop",
     "db:migrate": "pnpm --filter @pool/db migrate",
     "db:reset": "supabase db reset",
-    "prd:sync": "node scripts/sync-prd.mjs"
+    "prd:sync": "node scripts/sync-prd.mjs",
+    "simulate": "pnpm --filter @pool/seed simulate"
   },
   "devDependencies": {
     "typescript": "^5.7.3",

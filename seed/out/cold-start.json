@@ -1,0 +1,16 @@
+{
+  "campus": "sim-58e9ae72",
+  "people": 20,
+  "weeks": 3,
+  "observations": 6,
+  "durationSeconds": 108,
+  "curve": [
+    {
+      "poolCount": 0,
+      "n": 6,
+      "avgCandidates": 1.8333333333333333,
+      "avgTopScore": 0.38154145127806016,
+      "takeoverRate": 0.3333333333333333
+    }
+  ]
+}
