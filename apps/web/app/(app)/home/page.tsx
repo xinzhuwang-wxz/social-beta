@@ -5,7 +5,7 @@ import type { PoolSummary } from '@pool/engine'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
 import { GardenScene, type GardenPlant } from '@/components/garden-scene'
-import { PageShell, EmptyState, SectionHead } from '@/components/page-header'
+import { PageShell, SectionHead } from '@/components/page-header'
 import { PoolPlant } from '@/components/pool-plant'
 import { stageOf, stateLabel, STAGE_LABEL, STAGE_MEANING } from '@/lib/growth'
 
@@ -72,16 +72,13 @@ export default async function HomePage() {
         </Link>
       )}
 
+      {/* 花园插画里已经说过「花园还空着，说一句你想干什么」，这里只补一个动作。
+          原先这块又整段重述了一遍空状态 —— 同一件事在同一屏说两遍，
+          第二遍读起来就像产品在替自己解释。 */}
       {pools.length === 0 ? (
-        <EmptyState>
-          <p>还没有任何一株。这不是空白页，是如实反映：你还没和别人一起把哪件事做成过。</p>
-          <Link
-            href="/square"
-            className="btn btn-secondary btn-sm mt-3 inline-flex"
-          >
-            去种一颗
-          </Link>
-        </EmptyState>
+        <Link href="/square" className="btn btn-primary self-start">
+          种下第一颗
+        </Link>
       ) : (
         <div className="flex flex-col gap-7">
           <PoolGroup title="正在长" pools={growing} hint="需要你继续推的" />

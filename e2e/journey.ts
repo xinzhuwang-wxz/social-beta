@@ -206,9 +206,27 @@ async function main() {
         if (tag === 'select') await campus.selectOption({ index: 1 }).catch(() => {})
         else await page.fill('input[name="campusId"]', 'pku')
       }
-      await page.click('button[type="submit"]')
-      await page.waitForLoadState('networkidle').catch(() => {})
-      record('建档完成', !page.url().includes('/onboarding'), page.url().replace(BASE, ''))
+      await page.click('form button[type="submit"]')
+      // 等「导航真的发生」，不是等网络空闲。
+      //
+      // 服务端动作的 redirect 由客户端路由执行：POST 完成 → networkidle 满足 →
+      // 客户端才把地址换掉。在 networkidle 之后立刻读 URL 会读到旧值，
+      // 于是一个正常的产品被判成「建档失败」。第一版就是这么误报的。
+      await page.waitForURL((u) => !u.pathname.includes('/onboarding'), { timeout: 30_000 }).catch(() => {})
+      const done = !page.url().includes('/onboarding')
+      // 失败时把页面上的报错条读出来 —— 只说「还停在引导页」等于没说，
+      // 排查的人还得自己再跑一遍去看屏幕上写了什么。
+      let why = page.url().replace(BASE, '')
+      if (!done) {
+        const banner = await page
+          .locator('[role="alert"], .alert, [class*="alert"]')
+          .first()
+          .textContent()
+          .catch(() => null)
+        const urlErr = new URL(page.url()).searchParams.get('error')
+        why = banner?.trim() || urlErr || `${why}（页面上没有可读的报错）`
+      }
+      record('建档完成', done, why)
     }
 
     // ── 底部标签栏（手机主导航）──────────────────────────────

@@ -3,7 +3,6 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { GrowthPlate } from "@/components/growth-plate";
 import { GardenScene } from "@/components/garden-scene";
-import { MessengerBird } from "@/components/messenger-bird";
 import { PoolPlant } from "@/components/pool-plant";
 import { StanceComparison } from "@/components/stance-comparison";
 import { ProcessSteps } from "@/components/process-steps";
@@ -76,7 +75,7 @@ export default function Home() {
         {/* ------------------------------------------------------- 01 生长图谱 */}
         <section id="growth" className="bg-surface-alt">
           <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-            <SectionEyebrow n="01" label="一次行动的一生" />
+            <SectionEyebrow label="一次行动的一生" />
             <h2 className="t-h2 mt-2 max-w-2xl">
               这株植物长到哪一步，就是这件事办到哪一步
             </h2>
@@ -92,7 +91,7 @@ export default function Home() {
         {/* ------------------------------------------------------------ 02 分野 */}
         <section id="stance">
           <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-            <SectionEyebrow n="02" label="分野" />
+            <SectionEyebrow label="分野" />
             <h2 className="t-h2 mt-2 max-w-2xl">
               别的 AI 替你说话，我们的 AI 只把话准备好
             </h2>
@@ -104,6 +103,7 @@ export default function Home() {
             </div>
             <p className="t-hand mt-5 max-w-2xl rounded-[var(--radius-md)] bg-accent-soft px-4 py-3 text-base leading-relaxed text-ink">
               一句话说完：AI 出候选和草稿，连接谁、怎么说、要不要回，全由你点。
+              它是信使，不是替身 —— 不会假装成你去跟人聊天。那句话，始终得你自己说。
             </p>
           </div>
         </section>
@@ -111,7 +111,7 @@ export default function Home() {
         {/* -------------------------------------------------------- 03 怎么运作 */}
         <section id="how" className="bg-surface-alt">
           <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-            <SectionEyebrow n="03" label="怎么运作" />
+            <SectionEyebrow label="怎么运作" />
             <h2 className="t-h2 mt-2 max-w-2xl">从一句话，到一件真的发生的事</h2>
             <figure className="card mt-5 max-w-2xl p-5">
               <blockquote className="t-hand text-lg leading-relaxed text-ink">
@@ -125,32 +125,11 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ---------------------------------------------------------- 04 信使鸟 */}
-        <section id="agent">
-          <div className="mx-auto grid w-full max-w-5xl gap-8 px-4 py-12 sm:px-6 sm:py-16 md:grid-cols-[0.9fr_1.1fr] md:items-center">
-            <div className="card flex items-end justify-around gap-2 p-5">
-              {(["carrying", "flying", "delivering", "happy"] as const).map((s) => (
-                <MessengerBird key={s} state={s} className="size-16 sm:size-20" label={null} />
-              ))}
-            </div>
-            <div>
-              <SectionEyebrow n="04" label="你的信使鸟" />
-              <h2 className="t-h2 mt-2">它是信使，不是替身</h2>
-              <p className="t-sec mt-3">
-                它理解你要什么，去校区里找可能合得来的人，把种子送进对方的信箱，再把候选带回来给你看。
-              </p>
-              <p className="t-hand mt-3 rounded-[var(--radius-md)] bg-accent-soft px-4 py-3 text-base leading-relaxed text-ink">
-                它不会假装成你去跟人聊天。那句话，始终得你自己说。
-              </p>
-            </div>
-          </div>
-        </section>
-
         {/* ---------------------------------------------------------- 05 森林 */}
         <section id="forest" className="bg-surface-alt">
           <div className="mx-auto grid w-full max-w-5xl gap-8 px-4 py-12 sm:px-6 sm:py-16 md:grid-cols-2 md:gap-12">
             <div>
-              <SectionEyebrow n="05" label="回忆森林" />
+              <SectionEyebrow label="回忆森林" />
               <h2 className="t-h2 mt-2">
                 你的画像，不是你声称喜欢什么，是你真正和别人完成过什么
               </h2>
@@ -168,10 +147,7 @@ export default function Home() {
             </div>
             <div className="t-sec flex flex-col gap-4 text-base">
               <p>
-                注册的时候不用先编一份自我介绍。你先做了几件事，画像才自己长出来——系统按运动、学术、手艺这类领域，把你去过的地方拼成一张张「切面」，而不是一份写死的简历。
-              </p>
-              <p>
-                每一条切面都能点回它的依据：具体是哪几株植物长出了这句话。你能改可见度、也能删。
+                注册不用先编一份自我介绍。你先做了几件事，画像才自己长出来——每一条都能点回它的依据，也能改可见度、能删。
               </p>
               <p className="t-hand rounded-[var(--radius-md)] bg-surface-raised px-4 py-3 text-base leading-relaxed text-ink">
                 你没发生过的事，不算数；一时兴起没成行的念头，也不会被算进「你是谁」。
@@ -183,7 +159,7 @@ export default function Home() {
         {/* ---------------------------------------------------------- 06 红线 */}
         <section id="lines">
           <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-            <SectionEyebrow n="06" label="四条红线" />
+            <SectionEyebrow label="四条红线" />
             <h2 className="t-h2 mt-2 max-w-2xl">这四件事，AI 永远不替你做决定</h2>
             <dl className="mt-7 grid gap-3 sm:grid-cols-2">
               {RED_LINES.map((line, i) => (
@@ -231,11 +207,13 @@ export default function Home() {
   );
 }
 
-function SectionEyebrow({ n, label }: { n: string; label: string }) {
-  return (
-    <p className="flex items-baseline gap-2.5">
-      <span className="t-cap font-semibold text-accent-deep">{n}</span>
-      <span className="t-cap">{label}</span>
-    </p>
-  );
+/**
+ * 小标签。
+ *
+ * 原本还带一个「01 / 02 / 03」的序号。序号只在内容真的是有序步骤时
+ * 才承载信息，而这里它编的是章节 —— 那是文档的目录感。
+ * 一个产品首页不需要告诉你现在读到第几章。
+ */
+function SectionEyebrow({ label }: { label: string }) {
+  return <p className="t-cap">{label}</p>;
 }

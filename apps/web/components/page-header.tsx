@@ -57,9 +57,16 @@ export function PageShell({
 }
 
 /** 空状态。永远说清「为什么是空的」和「下一步点哪」，不写「暂无数据」。 */
+/**
+ * 空状态。
+ *
+ * 用实线卡片，不用虚线框：虚线在界面语言里是「占位、未完成、可拖入」的意思，
+ * 而空状态是一个**正常且成立**的状态 —— 你还没做过这件事，仅此而已。
+ * 把它画成线框图，等于告诉用户这一块还没做完。
+ */
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-[var(--radius-md)] border border-dashed border-border-strong bg-surface-alt p-5 text-sm leading-relaxed text-ink-muted">
+    <div className="rounded-[var(--radius-md)] border border-border bg-surface-alt p-5 text-sm leading-relaxed text-ink-muted">
       {children}
     </div>
   )

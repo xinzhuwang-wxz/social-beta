@@ -83,16 +83,16 @@ export default async function MePage({ searchParams }: MePageProps) {
         <span className="pill">{person.displayName}</span>
       </div>
 
-      <p className="t-sec max-w-2xl">
-        这里没有一条是你填的。每一句画像都从你参与过的事里长出来，点开就能看到具体是哪几株。
-        只有双方都愿意留下的回忆才会出现在这里——任何一方觉得这次算了，这株就不会长进来，
-        且不会告诉对方是谁的决定。
-      </p>
+      {/* 一句话就够。
+          原文三行，把「画像是长出来的」「双方都愿意才留下」「不告诉对方是谁的决定」
+          全塞在这里 —— 而这三件事在本页下面又各自被说了一遍。同一屏说四遍，
+          是不相信界面本身能表达；用户要的是能用，不是听产品自辩。 */}
+      <p className="t-sec max-w-2xl">每一句都从你参与过的事里长出来，点开能看到是哪几株。</p>
 
       <GardenScene
         plants={forest}
         bird={forest.length > 0 ? 'happy' : 'resting'}
-        emptyHint="森林里还没有树。真的办成、双方也都愿意留下的事，才会长到这里来。"
+        emptyHint="办成一件事，这里就会长出第一棵。"
       />
 
       {growing > 0 && (
@@ -141,14 +141,12 @@ export default async function MePage({ searchParams }: MePageProps) {
         <SectionHead
           title="系统怎么描述你"
           aside={<span className="t-cap">{facets.length} 条切面</span>}
-          hint="每一条都能点回它的依据。改可见度、删掉，都由你。"
+          hint="点开看依据。可见度和删除都由你。"
         />
 
         {facets.length === 0 ? (
           <EmptyState>
-            <p>
-              还没有任何画像——这不是空白页，是如实反映：你还没参与过能长出画像的事。画像不是填出来的，它会在你真正和别人做成事情之后自己长出来。
-            </p>
+            <p>做成几件事之后，这里就有内容了。</p>
             <Link href="/square" className="btn btn-secondary btn-sm mt-3 inline-flex">
               去种一颗
             </Link>

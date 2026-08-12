@@ -24,8 +24,7 @@ export function BlockList({
   if (blocks.length === 0) {
     return (
       <p className="text-sm leading-relaxed text-ink-muted">
-        名单是空的。以后如果有人你不想再遇到，可以在你们共同的池塘里把他加进来 ——
-        加进来之后你们不会再出现在彼此的候选里，他不会收到任何通知。
+        名单是空的。要加人，去你们共同的池塘里。
       </p>
     )
   }

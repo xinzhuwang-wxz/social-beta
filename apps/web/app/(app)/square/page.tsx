@@ -10,7 +10,7 @@ import { IntentBoard } from '@/components/intent-board'
 import { finishPublishAction, publishIntentAction, startPublishAction } from './actions'
 
 interface SquarePageProps {
-  searchParams: Promise<{ domain?: string }>
+  searchParams: Promise<{ domain?: string; n?: string }>
 }
 
 /**
@@ -27,11 +27,21 @@ export default async function SquarePage({ searchParams }: SquarePageProps) {
   const person = await engine.currentPerson(actor)
   if (!person) redirect('/onboarding')
 
-  const { domain: rawDomain } = await searchParams
+  const { domain: rawDomain, n: rawN } = await searchParams
   const parsedDomain = Domain.safeParse(rawDomain)
   const domain = parsedDomain.success ? parsedDomain.data : undefined
 
-  const board = await engine.board(actor, { domain })
+  // 一屏 12 条，点一次多给 12 条。
+  //
+  // 引擎默认一次给 50，全渲染在一页上，在 375 的屏幕上是六千像素的同质列表 ——
+  // 那是把数据倒出来，不是让人翻。冷启动期广场确实要靠人自己翻，
+  // 但「让人翻」的前提是他翻得动。
+  const PAGE = 12
+  const shown = Math.min(Math.max(Number(rawN) || PAGE, PAGE), 96)
+  // 多取一条用来判断「还有没有」，渲染时不显示它
+  const fetched = await engine.board(actor, { domain, limit: shown + 1 })
+  const board = fetched.slice(0, shown)
+  const hasMore = fetched.length > shown
 
   return (
     <PageShell>
@@ -53,15 +63,24 @@ export default async function SquarePage({ searchParams }: SquarePageProps) {
             <h2 className="text-lg font-semibold text-ink">
               {person.campusId} · 种子广场
             </h2>
-            <span className="t-cap text-ink-soft">{board.length} 颗</span>
+            <span className="t-cap text-ink-soft">{board.length} 颗{hasMore ? '+' : ''}</span>
           </div>
           <p className="text-sm leading-relaxed text-ink-soft">
-            别人埋下的、还没长起来的愿望。冷启动期先让人自己翻，而不是给一个空推荐位假装智能。
+            别人埋下的、还没长起来的愿望。看到合适的，直接说一句。
           </p>
 
           <DomainFilter active={domain} />
 
           <IntentBoard items={board} viewerPersonId={person.id} />
+
+          {hasMore && (
+            <Link
+              href={{ pathname: '/square', query: { ...(domain ? { domain } : {}), n: shown + PAGE } }}
+              className="btn btn-secondary self-center"
+            >
+              再看 {PAGE} 颗
+            </Link>
+          )}
         </section>
       </>
     </PageShell>

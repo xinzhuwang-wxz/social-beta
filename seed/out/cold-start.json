@@ -1,44 +1,37 @@
 {
-  "campus": "sim-052a2de5",
+  "campus": "sim-98200343",
   "people": 200,
   "weeks": 12,
-  "observations": 250,
-  "durationSeconds": 1365,
+  "observations": 249,
+  "durationSeconds": 1431,
   "curve": [
     {
       "poolCount": 0,
-      "n": 180,
-      "avgCandidates": 3.411111111111111,
-      "avgTopScore": 0.7468272915555881,
-      "takeoverRate": 0.7055555555555556
+      "n": 165,
+      "avgCandidates": 3.4484848484848483,
+      "avgTopScore": 0.7466949443302169,
+      "takeoverRate": 0.7393939393939394
     },
     {
       "poolCount": 1,
-      "n": 55,
-      "avgCandidates": 3.5090909090909093,
-      "avgTopScore": 0.7794362271430998,
-      "takeoverRate": 0.8
+      "n": 61,
+      "avgCandidates": 3.459016393442623,
+      "avgTopScore": 0.7751848576431034,
+      "takeoverRate": 0.7377049180327869
     },
     {
       "poolCount": 2,
-      "n": 9,
-      "avgCandidates": 3.3333333333333335,
-      "avgTopScore": 0.7862740276904774,
-      "takeoverRate": 1
+      "n": 18,
+      "avgCandidates": 3.4444444444444446,
+      "avgTopScore": 0.7810750736892801,
+      "takeoverRate": 0.8333333333333334
     },
     {
       "poolCount": 3,
-      "n": 4,
-      "avgCandidates": 3.25,
-      "avgTopScore": 0.7988699629985605,
-      "takeoverRate": 0.5
-    },
-    {
-      "poolCount": 4,
-      "n": 2,
-      "avgCandidates": 3.5,
-      "avgTopScore": 0.8910714285714285,
-      "takeoverRate": 1
+      "n": 5,
+      "avgCandidates": 3.2,
+      "avgTopScore": 0.7411716395220623,
+      "takeoverRate": 0.8
     }
   ]
 }
