@@ -13,6 +13,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // 刘海屏：内容铺到安全区之外，再由固定元素自己用 env(safe-area-inset-*) 让位。
+  // 少了 viewport-fit=cover，那几个 env() 变量在 iOS 上恒为 0，底部标签栏
+  // 就会被 Home Indicator 压住。
+  viewportFit: "cover",
   // 深浅色跟随系统时，让浏览器 UI（地址栏、表单控件、滚动条）也跟着换色。
   // 这两个值必须与 globals.css 里 --surface 的浅/深取值一致 ——
   // 对不上时地址栏和页面之间会出现一道谁都解释不清的色差。

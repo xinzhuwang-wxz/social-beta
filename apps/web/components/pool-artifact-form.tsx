@@ -30,7 +30,7 @@ export function PoolArtifactForm({ poolId }: { poolId: string }) {
           type="url"
           required
           placeholder="粘贴一个图片链接"
-          className="border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+          className="rounded-[var(--radius-sm)] border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
         />
         <label htmlFor="artifact-caption" className="text-xs text-ink-soft">
           说明（可选）
@@ -40,22 +40,22 @@ export function PoolArtifactForm({ poolId }: { poolId: string }) {
           name="caption"
           type="text"
           placeholder="比如「山顶的日出」"
-          className="border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+          className="rounded-[var(--radius-sm)] border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
         />
         <button
           type="submit"
           disabled={pending}
-          className="self-start border border-accent px-4 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
+          className="self-start btn btn-secondary"
         >
           {pending ? '传中…' : '传上去'}
         </button>
       </form>
       {state.status === 'error' && (
-        <p role="alert" className="text-sm text-seal">
+        <p role="alert" className="text-sm text-alert">
           {state.message}
         </p>
       )}
-      {state.status === 'added' && <p className="text-sm text-accent-strong">传上去了。</p>}
+      {state.status === 'added' && <p className="text-sm text-brand">传上去了。</p>}
     </div>
   )
 }

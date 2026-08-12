@@ -18,9 +18,9 @@ export function PoolDormantPanel({
 }) {
   return (
     <section className="flex gap-4 border border-border bg-surface-alt p-4 sm:p-5">
-      <PoolPlant stage="fruiting" label={null} className="hidden size-20 shrink-0 sm:block" />
+      <PoolPlant stage="fruit" label={null} className="hidden size-20 shrink-0 sm:block" />
       <div className="min-w-0">
-        <p className="mark text-ink-soft">结果 · 它睡着了，籽还在</p>
+        <p className="t-cap text-ink-soft">结果 · 它睡着了，籽还在</p>
         <p className="mt-2 text-sm leading-relaxed text-ink break-anywhere">
           {nextHook ?? '还没有具体的下次理由。'}
         </p>
@@ -29,7 +29,7 @@ export function PoolDormantPanel({
             type="submit"
             disabled={!due}
             title={due ? undefined : '还没到唤醒的时间'}
-            className="border border-seal bg-seal px-4 py-2 text-sm font-medium text-seal-ink transition-colors hover:border-seal-strong hover:bg-seal-strong disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             再约一次
           </button>

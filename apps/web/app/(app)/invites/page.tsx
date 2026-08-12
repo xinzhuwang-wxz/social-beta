@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
-import { ColorField } from '@/components/color-field'
-import { PageShell, EmptyState, ErrorBanner } from '@/components/page-header'
+import { PageHeader, PageShell, EmptyState, ErrorBanner } from '@/components/page-header'
+import { MessengerBird } from '@/components/messenger-bird'
 import { replyToInviteAction } from './actions'
 
 interface InvitesPageProps {
@@ -38,19 +38,15 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
   const invites = await engine.myInvites(actor)
 
   return (
-    <div className="flex flex-col">
-      <ColorField
-        eyebrow="收到的种子"
+    <PageShell>
+      <PageHeader
+        eyebrow="信箱"
         title="有人想和你一起做一件事"
-        stage="seed"
-        meta={[`${invites.length} 颗待回应`]}
-      >
-        <p className="max-w-xl text-sm leading-relaxed opacity-90">
-          别人的 Agent 把它送到了你这儿。不回应没有任何代价，也不需要说明理由——什么都不做本身就是最诚实的答案。
-        </p>
-      </ColorField>
-
-      <PageShell>
+        lede="别人的信使鸟把种子送到了你这儿。不回应没有任何代价，也不需要说明理由——什么都不做本身就是最诚实的答案。"
+        aside={invites.length > 0 ? <span className="badge">{invites.length}</span> : undefined}
+        art={<MessengerBird state="delivering" className="size-20" label={null} />}
+      />
+      <>
         {error && <ErrorBanner message={decodeURIComponent(error)} />}
 
         {invites.length === 0 ? (
@@ -60,12 +56,12 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
         ) : (
           <ul className="flex flex-col gap-4">
             {invites.map((invite) => (
-              <li key={invite.poolId} className="border border-border bg-surface-raised">
+              <li key={invite.poolId} className="card">
                 <div className="border-b border-border px-4 py-3">
-                  <p className="font-head text-base font-semibold text-ink break-anywhere">
+                  <p className="text-base font-semibold text-ink break-anywhere">
                     {invite.title ?? '（还没起名字）'}
                   </p>
-                  <p className="mark mt-1 text-ink-soft">
+                  <p className="t-cap mt-1 text-ink-soft">
                     {DATE_FORMAT.format(invite.invitedAt)} 送到
                   </p>
                 </div>
@@ -78,7 +74,7 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
                   <form action={replyToInviteAction.bind(null, invite.poolId, 'join')}>
                     <button
                       type="submit"
-                      className="border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong"
+                      className="btn btn-primary"
                     >
                       算我一个
                     </button>
@@ -86,7 +82,7 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
                   <form action={replyToInviteAction.bind(null, invite.poolId, 'decline')}>
                     <button
                       type="submit"
-                      className="border border-border px-4 py-2 text-sm text-ink-muted transition-colors hover:border-border-strong hover:text-ink"
+                      className="btn btn-quiet"
                     >
                       这次不了
                     </button>
@@ -94,7 +90,7 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
                   <form action={replyToInviteAction.bind(null, invite.poolId, 'later')}>
                     <button
                       type="submit"
-                      className="border border-border px-4 py-2 text-sm text-ink-muted transition-colors hover:border-border-strong hover:text-ink"
+                      className="btn btn-quiet"
                     >
                       以后再说
                     </button>
@@ -103,7 +99,7 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
 
                 {/* <details> 而不是一个需要 JS 的展开：无脚本也能用，键盘可达。 */}
                 <details className="border-t border-border">
-                  <summary className="cursor-pointer px-4 py-2.5 text-sm text-accent">
+                  <summary className="cursor-pointer px-4 py-2.5 text-sm text-accent-deep">
                     想去，但时间或地点要调整
                   </summary>
                   <form
@@ -122,11 +118,11 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
                       rows={2}
                       required
                       placeholder="比如「周六下午有课，晚点出发的话我就去」"
-                      className="border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-ink placeholder:text-ink-soft focus-visible:border-accent"
+                      className="border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
                     />
                     <button
                       type="submit"
-                      className="self-start border border-accent px-4 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent-soft"
+                      className="self-start btn btn-secondary"
                     >
                       发出去
                     </button>
@@ -140,7 +136,7 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
         <p className="text-xs leading-relaxed text-ink-soft">
           「算我一个」之后它才会破土——两个人都点头，那件事才开始长。加入之后聊下来发现不合适，随时还能退出。
         </p>
-      </PageShell>
-    </div>
+      </>
+    </PageShell>
   )
 }

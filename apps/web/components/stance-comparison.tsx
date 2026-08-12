@@ -32,10 +32,10 @@ const ROWS = [
 export function StanceComparison() {
   return (
     <div className="border border-border">
-      <div className="mark hidden border-b border-border bg-surface-alt px-5 py-2.5 text-ink-soft sm:grid sm:grid-cols-[6rem_1fr_1fr] sm:gap-6 sm:px-6">
+      <div className="t-cap hidden border-b border-border bg-surface-alt px-5 py-2.5 text-ink-soft sm:grid sm:grid-cols-[6rem_1fr_1fr] sm:gap-6 sm:px-6">
         <span>决定权</span>
         <span>代答式 AI 社交</span>
-        <span className="text-accent">池塘</span>
+        <span className="text-accent-deep">池塘</span>
       </div>
       {ROWS.map((row, i) => (
         <div
@@ -44,15 +44,15 @@ export function StanceComparison() {
             i > 0 ? "border-t border-border" : ""
           }`}
         >
-          <div className="font-head text-base font-semibold text-ink sm:text-sm">
+          <div className="text-base font-semibold text-ink sm:text-sm">
             {row.dim}
           </div>
           <p className="text-sm leading-relaxed text-ink-soft">
             <span className="mr-1 sm:hidden">代答式 AI：</span>
             {row.other}
           </p>
-          <p className="border-l-2 border-accent pl-3 text-sm leading-relaxed text-ink sm:border-l sm:border-border sm:pl-4">
-            <span className="mr-1 text-accent sm:hidden">池塘：</span>
+          <p className="border-l-2 border-accent-deep pl-3 text-sm leading-relaxed text-ink sm:border-l sm:border-border sm:pl-4">
+            <span className="mr-1 text-accent-deep sm:hidden">池塘：</span>
             {row.pool}
           </p>
         </div>

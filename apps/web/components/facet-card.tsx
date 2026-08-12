@@ -31,18 +31,18 @@ export function FacetCard({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   return (
-    <article className="border border-border bg-surface-raised">
+    <article className="card">
       <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5">
-        <h3 className="font-head text-base font-semibold text-ink">
+        <h3 className="text-base font-semibold text-ink">
           {DOMAIN_LABEL[facet.domain]}
         </h3>
-        <span className="mark text-ink-soft">长自 {facet.nPools} 株</span>
+        <span className="t-cap text-ink-soft">长自 {facet.nPools} 株</span>
       </div>
 
       <p className="px-4 py-4 text-sm leading-relaxed text-ink break-anywhere">{facet.summary}</p>
 
-      <div className="border-l-2 border-accent bg-accent-soft px-4 py-3">
-        <p className="mark text-accent-strong">你凭什么这么说我</p>
+      <div className="border-l-2 border-accent-deep bg-accent-soft px-4 py-3">
+        <p className="t-cap font-semibold tracking-wide text-brand">你凭什么这么说我</p>
         {facet.evidence.length === 0 ? (
           <p className="mt-1.5 text-xs text-ink-soft">
             这条暂时找不到对应的池塘——可能相关的那些已经被退出了。
@@ -53,7 +53,7 @@ export function FacetCard({
               <li key={e.poolId}>
                 <Link
                   href={`/pool/${e.poolId}`}
-                  className="inline-block border border-border bg-surface px-2.5 py-1 text-xs text-ink transition-colors hover:border-accent hover:text-accent"
+                  className="flex min-h-11 items-center rounded-[var(--radius-pill)] border border-border-strong bg-surface-raised px-4 text-sm text-ink transition-colors duration-200"
                 >
                   {e.title ?? '（还没起名字）'}
                 </Link>
@@ -64,7 +64,7 @@ export function FacetCard({
       </div>
 
       <fieldset className="flex flex-col gap-2 border-b border-border px-4 py-3">
-        <legend className="mark text-ink-soft">谁能看到这条</legend>
+        <legend className="t-cap text-ink-soft">谁能看到这条</legend>
         <div className="flex flex-wrap gap-1.5">
           {VISIBILITY_OPTIONS.map((opt) => (
             <form key={opt.value} action={setVisibilityAction.bind(null, facet.domain, opt.value)}>
@@ -73,10 +73,10 @@ export function FacetCard({
                 aria-pressed={facet.visibility === opt.value}
                 title={opt.hint}
                 disabled={facet.visibility === opt.value}
-                className={`border px-2.5 py-1 text-xs transition-colors disabled:cursor-default ${
+                className={`flex min-h-11 items-center rounded-[var(--radius-pill)] border px-4 text-sm transition-colors duration-200 disabled:cursor-default ${
                   facet.visibility === opt.value
-                    ? 'border-accent bg-accent text-accent-ink'
-                    : 'border-border text-ink-muted hover:border-border-strong hover:text-ink'
+                    ? 'border-accent-deep bg-accent-deep font-semibold text-accent-ink'
+                    : 'border-border-strong text-ink-muted'
                 }`}
               >
                 {opt.label}
@@ -99,7 +99,7 @@ export function FacetCard({
               <form action={deleteAction.bind(null, facet.domain)}>
                 <button
                   type="submit"
-                  className="border border-seal px-3 py-1.5 text-xs font-medium text-seal transition-colors hover:bg-seal-soft"
+                  className="flex min-h-11 items-center rounded-[var(--radius-pill)] border border-alert px-4 text-sm font-semibold text-alert transition-colors duration-200"
                 >
                   确定删除
                 </button>
@@ -107,7 +107,7 @@ export function FacetCard({
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(false)}
-                className="border border-border px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-border-strong hover:text-ink"
+                className="btn btn-quiet btn-sm"
               >
                 算了
               </button>
@@ -117,7 +117,7 @@ export function FacetCard({
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="text-xs text-ink-soft underline decoration-dotted underline-offset-4 transition-colors hover:text-seal"
+            className="flex min-h-11 items-center px-1 text-sm text-ink-muted underline decoration-dotted underline-offset-4 transition-colors hover:text-alert"
           >
             删除这条
           </button>

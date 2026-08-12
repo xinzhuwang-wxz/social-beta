@@ -51,14 +51,14 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
               required
               minLength={'minLength' in field ? field.minLength : undefined}
               placeholder={field.placeholder}
-              className="border border-border bg-surface-raised px-3 py-2.5 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+              className="rounded-[var(--radius-sm)] border border-border-strong bg-surface-raised px-3 py-2.5 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
             />
           </div>
         ))}
 
         <button
           type="submit"
-          className="self-start border border-seal bg-seal px-5 py-2.5 text-sm font-medium text-seal-ink transition-colors hover:border-seal-strong hover:bg-seal-strong"
+          className="self-start border border-accent-deep bg-accent-deep px-5 py-2.5 text-sm font-medium text-accent-ink transition-colors hover:border-accent-hover hover:bg-accent-hover"
         >
           进池塘
         </button>

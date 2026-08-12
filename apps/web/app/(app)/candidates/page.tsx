@@ -51,7 +51,7 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
         lede="每张卡上的「为什么是他」都必须引用他真的写过的内容——读起来像模板句，就说明这次没匹配好，你可以直接跳过。"
         aside={
           candidates.length > 0 ? (
-            <span className="mark text-ink-soft">{candidates.length} 张</span>
+            <span className="t-cap text-ink-soft">{candidates.length} 张</span>
           ) : undefined
         }
       />
@@ -92,7 +92,7 @@ function EmptyCandidates() {
       </p>
       <Link
         href="/square"
-        className="mt-3 inline-block text-accent underline decoration-dotted underline-offset-4"
+        className="mt-3 inline-block text-accent-deep underline decoration-dotted underline-offset-4"
       >
         去种子广场自己翻翻 →
       </Link>
@@ -107,7 +107,7 @@ function MatchError({ message }: { message: string }) {
       <p className="mt-1">过会儿再回来看看，或者先去广场逛逛。</p>
       <Link
         href="/square"
-        className="mt-3 inline-block text-accent underline decoration-dotted underline-offset-4"
+        className="mt-3 inline-block text-accent-deep underline decoration-dotted underline-offset-4"
       >
         去种子广场 →
       </Link>
@@ -135,7 +135,7 @@ function PickIntent({ intents }: { intents: MyIntent[] }) {
           <p>你还没种下任何一颗。</p>
           <Link
             href="/square"
-            className="mt-3 inline-block text-accent underline decoration-dotted underline-offset-4"
+            className="mt-3 inline-block text-accent-deep underline decoration-dotted underline-offset-4"
           >
             去种一颗 →
           </Link>
@@ -158,7 +158,7 @@ function IntentNotFound({ intents }: { intents: MyIntent[] }) {
       {intents.length > 0 && <IntentPicker intents={intents} />}
       <Link
         href="/square"
-        className="self-start text-sm text-accent underline decoration-dotted underline-offset-4"
+        className="self-start text-sm text-accent-deep underline decoration-dotted underline-offset-4"
       >
         去种子广场 →
       </Link>
@@ -178,7 +178,7 @@ function IntentPicker({ intents }: { intents: MyIntent[] }) {
             <span className="min-w-0 text-sm leading-relaxed text-ink break-anywhere">
               {i.rawText}
             </span>
-            <span className="mark shrink-0 text-accent">找人 →</span>
+            <span className="t-cap shrink-0 text-accent-deep">找人 →</span>
           </Link>
         </li>
       ))}

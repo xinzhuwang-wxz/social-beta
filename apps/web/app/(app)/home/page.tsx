@@ -4,17 +4,21 @@ import { DOMAIN_LABEL } from '@pool/shared'
 import type { PoolSummary } from '@pool/engine'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
-import { ColorField } from '@/components/color-field'
-import { PageShell, EmptyState } from '@/components/page-header'
+import { GardenScene, type GardenPlant } from '@/components/garden-scene'
+import { PageShell, EmptyState, SectionHead } from '@/components/page-header'
 import { PoolPlant } from '@/components/pool-plant'
-import { stageOf, STAGE_LABEL, STAGE_MEANING } from '@/lib/growth'
+import { stageOf, stateLabel, STAGE_LABEL, STAGE_MEANING } from '@/lib/growth'
 
 /**
- * /home —— 我的行动。
+ * /home —— 我的花园。A 类世界页面：先是一片花园，再是可读的清单。
+ *
+ * 花园那一屏承担情绪（这些事都还活着、长得高矮不一），
+ * 下面的清单承担信息（哪一步、几个人、下次是什么）。
+ * 规范的优先级是「功能信息 > 世界观表达 > 装饰」，所以清单不能省 ——
+ * 光看植物，用户知道它在长，但不知道自己该干什么。
  *
  * 只做「取 actor → 调 PoolEngine → 渲染」。植物形态由 pool.state 唯一决定
- * （见 lib/growth.ts），所以这一页不需要为每一株再查一次时间线 ——
- * 补上 `planned` 那一档之后，状态机本身已经把进度表达完整了。
+ * （见 lib/growth.ts），这一页不需要为每一株再查一次时间线。
  */
 export default async function HomePage() {
   const actor = await requireActor()
@@ -29,62 +33,63 @@ export default async function HomePage() {
   const bloomed = pools.filter((p) => p.state === 'done')
   const asleep = pools.filter((p) => p.state === 'dormant')
 
-  // 色域里画最靠前的那一株：手上还在推进的事优先，没有就退到已经开花的。
-  const featured = growing[0] ?? bloomed[0] ?? asleep[0]
+  const garden: GardenPlant[] = growing.map((pool) => ({
+    key: pool.id,
+    stage: stageOf(pool.state),
+    artifacts: pool.artifactCount,
+    title: pool.title ?? '（还没起名字）',
+    href: `/pool/${pool.id}`,
+  }))
 
   return (
-    <div className="flex flex-col">
-      <ColorField
-        eyebrow="我的行动"
-        title={featured ? `${growing.length} 件事在长` : '还没有一株'}
-        stage={featured ? stageOf(featured.state) : 'seed'}
-        artifacts={featured?.artifactCount ?? 0}
-        showMeaning={false}
-        meta={[
-          `${person.displayName} · ${person.campusId}`,
-          `开过花 ${bloomed.length}`,
-          `睡着 ${asleep.length}`,
-        ]}
-      >
-        <p className="max-w-xl text-sm leading-relaxed opacity-90">
-          每一株代表一件事，不代表一个人。它长到哪一步，就是这件事办到哪一步。
-        </p>
-      </ColorField>
+    <PageShell wide>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="t-cap font-medium tracking-wide text-accent-deep">我的花园</p>
+          <h1 className="t-h1 mt-1">{person.displayName}，这些事还在长</h1>
+        </div>
+        <span className="pill">
+          @{person.handle} · {person.campusId}
+        </span>
+      </div>
 
-      <PageShell>
-        {invites.length > 0 && (
+      <GardenScene
+        plants={garden}
+        bird={invites.length > 0 ? 'delivering' : growing.length > 0 ? 'idle' : 'resting'}
+        emptyHint="花园还空着。说一句你想干什么，就种下第一颗。"
+      />
+
+      {invites.length > 0 && (
+        <Link
+          href="/invites"
+          className="card flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-200 hover:bg-surface-alt"
+        >
+          <span className="flex items-center gap-2 text-sm text-ink">
+            <span className="badge">{invites.length}</span>
+            信使鸟送来了新的种子，等你回应
+          </span>
+          <span className="t-cap shrink-0 text-accent-deep">去信箱 →</span>
+        </Link>
+      )}
+
+      {pools.length === 0 ? (
+        <EmptyState>
+          <p>还没有任何一株。这不是空白页，是如实反映：你还没和别人一起把哪件事做成过。</p>
           <Link
-            href="/invites"
-            className="flex items-center justify-between gap-4 border-l-2 border-accent bg-accent-soft px-4 py-3 text-sm transition-opacity hover:opacity-80"
+            href="/square"
+            className="btn btn-secondary btn-sm mt-3 inline-flex"
           >
-            <span className="text-accent-strong">
-              信箱里有 {invites.length} 颗种子等你回应
-            </span>
-            <span className="mark shrink-0 text-accent">去看看 →</span>
+            去种一颗
           </Link>
-        )}
-
-        {pools.length === 0 ? (
-          <EmptyState>
-            <p>
-              还没有任何一株。这不是空白页，是如实反映：你还没和别人一起把哪件事做成过。
-            </p>
-            <Link
-              href="/square"
-              className="mt-3 inline-block text-accent underline decoration-dotted underline-offset-4"
-            >
-              去种一颗 →
-            </Link>
-          </EmptyState>
-        ) : (
-          <>
-            <PoolGroup title="正在长" pools={growing} hint="需要你继续推的" />
-            <PoolGroup title="开过花" pools={bloomed} hint="办成了，等着收尾" />
-            <PoolGroup title="睡着了" pools={asleep} hint="带着下次的理由，到点自己醒" />
-          </>
-        )}
-      </PageShell>
-    </div>
+        </EmptyState>
+      ) : (
+        <div className="flex flex-col gap-7">
+          <PoolGroup title="正在长" pools={growing} hint="需要你继续推的" />
+          <PoolGroup title="开过花" pools={bloomed} hint="办成了，等着收尾" />
+          <PoolGroup title="歇着" pools={asleep} hint="带着下次的理由，到点自己醒" />
+        </div>
+      )}
+    </PageShell>
   )
 }
 
@@ -99,44 +104,45 @@ function PoolGroup({
 }) {
   if (pools.length === 0) return null
   return (
-    <section>
-      <div className="flex items-baseline justify-between gap-4 border-b border-border pb-2">
-        <h2 className="font-head text-lg font-semibold text-ink">{title}</h2>
-        <span className="mark text-ink-soft">
-          {pools.length} · {hint}
-        </span>
-      </div>
-      <ul>
+    <section className="flex flex-col gap-3">
+      <SectionHead
+        title={title}
+        aside={<span className="t-cap">{pools.length} 株 · {hint}</span>}
+      />
+      <ul className="flex flex-col gap-2.5">
         {pools.map((pool) => {
           const stage = stageOf(pool.state)
           return (
-            <li key={pool.id} className="border-b border-border">
+            <li key={pool.id}>
               <Link
                 href={`/pool/${pool.id}`}
-                className="grid grid-cols-[3.5rem_1fr] items-center gap-4 py-4 transition-colors hover:bg-surface-raised"
+                className="card flex items-center gap-4 p-3 transition-colors duration-200 hover:bg-surface-alt sm:p-4"
               >
                 <PoolPlant
                   stage={stage}
                   artifacts={pool.artifactCount}
                   label={null}
-                  className="size-14 justify-self-center"
+                  className="h-16 w-13 shrink-0"
                 />
-                <div className="min-w-0">
-                  <p className="font-head text-base font-semibold text-ink break-anywhere">
+                <div className="min-w-0 flex-1">
+                  <p className="t-hand text-base font-semibold text-ink break-anywhere">
                     {pool.title ?? '（还没起名字）'}
                   </p>
-                  <p className="mt-0.5 text-xs text-ink-soft">
-                    <span className="text-accent">{STAGE_LABEL[stage]}</span>
+                  {/* 规范要求页面用文字说明当前状态，光有植物不够 */}
+                  <p className="t-cap mt-0.5">
+                    <span className="font-semibold text-accent-deep">
+                      {STAGE_LABEL[stage]}
+                    </span>
                     {` · ${STAGE_MEANING[stage]}`}
                   </p>
-                  <p className="mark mt-1.5 text-ink-soft">
+                  <p className="t-cap mt-1 text-ink-soft">
                     {pool.domain
                       ? `${DOMAIN_LABEL[pool.domain as keyof typeof DOMAIN_LABEL] ?? pool.domain} · `
                       : ''}
-                    {pool.memberCount} 人 · {pool.artifactCount} 份回流物
+                    {stateLabel(pool.state)} · {pool.memberCount} 人 · {pool.artifactCount} 份回流物
                   </p>
                   {pool.nextHook && (
-                    <p className="mt-1.5 border-l-2 border-border pl-2.5 text-xs leading-relaxed text-ink-muted break-anywhere">
+                    <p className="t-cap mt-1.5 rounded-[var(--radius-sm)] bg-surface-alt px-2.5 py-1.5 break-anywhere">
                       下次：{pool.nextHook}
                     </p>
                   )}

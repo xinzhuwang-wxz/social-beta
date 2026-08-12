@@ -31,7 +31,7 @@ export function PoolFeedbackForm({ poolId }: { poolId: string }) {
           {OPTIONS.map((opt) => (
             <label
               key={opt.value}
-              className="flex cursor-pointer items-center gap-1.5 border border-border px-3 py-1.5 text-sm text-ink has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
+              className="flex cursor-pointer items-center gap-1.5 border border-border px-3 py-1.5 text-sm text-ink has-[:checked]:border-accent-deep has-[:checked]:bg-accent-soft"
             >
               <input type="radio" name="again" value={opt.value} required />
               {opt.label}
@@ -46,22 +46,22 @@ export function PoolFeedbackForm({ poolId }: { poolId: string }) {
           name="note"
           rows={2}
           placeholder="想多说两句就写在这里（可选）"
-          className="border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+          className="rounded-[var(--radius-sm)] border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
         />
         <button
           type="submit"
           disabled={pending}
-          className="self-start border border-accent px-4 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
+          className="self-start btn btn-secondary"
         >
           {pending ? '保存中…' : '留下反馈'}
         </button>
       </form>
       {state.status === 'error' && (
-        <p role="alert" className="text-sm text-seal">
+        <p role="alert" className="text-sm text-alert">
           {state.message}
         </p>
       )}
-      {state.status === 'saved' && <p className="text-sm text-accent-strong">记下了，只有你自己看得见。</p>}
+      {state.status === 'saved' && <p className="text-sm text-brand">记下了，只有你自己看得见。</p>}
     </div>
   )
 }

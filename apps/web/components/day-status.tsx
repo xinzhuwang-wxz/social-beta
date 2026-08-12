@@ -39,7 +39,7 @@ export function DayStatusPanel({
   return (
     <section className="border border-border">
       <div className="border-b border-border px-4 py-2.5">
-        <span className="mark text-ink-soft">当天状态</span>
+        <span className="t-cap text-ink-soft">当天状态</span>
       </div>
 
       <div className="flex flex-col gap-3 px-4 py-3">
@@ -51,10 +51,10 @@ export function DayStatusPanel({
                 <button
                   type="submit"
                   aria-pressed={active}
-                  className={`border px-3 py-1.5 text-xs transition-colors ${
+                  className={`flex min-h-11 items-center rounded-[var(--radius-pill)] border px-4 text-sm transition-colors duration-200 ${
                     active
-                      ? 'border-accent bg-accent text-accent-ink'
-                      : 'border-border text-ink-muted hover:border-border-strong hover:text-ink'
+                      ? 'border-accent-deep bg-accent-deep font-semibold text-accent-ink'
+                      : 'border-border-strong text-ink-muted'
                   }`}
                 >
                   {opt.label}

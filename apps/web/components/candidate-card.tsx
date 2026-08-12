@@ -23,23 +23,23 @@ export function CandidateCard({
   index: number
 }) {
   return (
-    <article className="border border-border bg-surface-raised">
+    <article className="card">
       <div className="flex items-baseline justify-between gap-4 border-b border-border px-4 py-2.5 sm:px-5">
-        <span className="mark text-ink-soft">候选 {String(index).padStart(2, '0')}</span>
-        <span className="font-head text-base font-semibold text-ink break-anywhere">
+        <span className="t-cap text-ink-soft">候选 {String(index).padStart(2, '0')}</span>
+        <span className="text-base font-semibold text-ink break-anywhere">
           {candidate.displayName}
         </span>
       </div>
 
       <div className="border-b border-border px-4 py-3 sm:px-5">
-        <p className="mark text-ink-soft">他种下的</p>
+        <p className="t-cap text-ink-soft">他种下的</p>
         <p className="mt-1.5 text-sm leading-relaxed text-ink-muted break-anywhere">
           {candidate.rawText}
         </p>
       </div>
 
-      <div className="border-l-2 border-seal bg-seal-soft px-4 py-4 sm:px-5">
-        <p className="mark text-seal-strong">为什么是他</p>
+      <div className="rounded-[var(--radius-md)] border border-alert/40 bg-alert/10 px-4 py-4 sm:px-5">
+        <p className="t-cap font-semibold tracking-wide text-brand">为什么是他</p>
         <p className="mt-2 text-base leading-relaxed text-ink break-anywhere">
           {candidate.reason}
         </p>
@@ -51,7 +51,7 @@ export function CandidateCard({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-4 py-4 sm:px-5">
         <Link
           href={`/pool/new?seekerIntentId=${encodeURIComponent(seekerIntentId)}&candidateIntentId=${encodeURIComponent(candidate.intentId)}`}
-          className="border border-seal bg-seal px-5 py-2.5 text-sm font-medium text-seal-ink transition-colors hover:border-seal-strong hover:bg-seal-strong"
+          className="border border-accent-deep bg-accent-deep px-5 py-2.5 text-sm font-medium text-accent-ink transition-colors hover:border-accent-hover hover:bg-accent-hover"
         >
           我来说
         </Link>

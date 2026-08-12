@@ -356,10 +356,14 @@ a {
   justify-content: center;
   gap: 0.4rem;
   border-radius: var(--radius-pill);
+  /* 触摸目标不小于 44×44pt。手指没有光标那么准，
+     一个只有文字高度的按钮在手机上是「点三次才中一次」。 */
+  min-height: 2.75rem;
   padding: 0.625rem 1.25rem;
   font-size: 1rem; /* 16 */
   font-weight: 600;
   line-height: 1.4;
+  /* 只动 transform / 颜色 —— 这两类不触发重排，手机上才不掉帧。 */
   transition:
     background-color 220ms var(--ease-soft),
     border-color 220ms var(--ease-soft),
@@ -405,9 +409,32 @@ a {
   color: var(--ink);
 }
 
+/* 小号按钮只收窄横向内边距，**不降低高度** ——
+   44pt 是手指的尺寸，不随视觉层级变化。 */
 .btn-sm {
   padding: 0.375rem 0.875rem;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
+}
+
+/* 输入控件统一 16px。
+   iOS Safari 在输入框字号小于 16px 时会自动放大整页，用户填完一个字段
+   就发现页面歪了、还得手动缩回去 —— 这是移动端最常见的坑之一。 */
+input,
+textarea,
+select {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+input:not([type="radio"]):not([type="checkbox"]),
+textarea,
+select {
+  min-height: 2.75rem;
+  border-radius: var(--radius-sm);
+}
+
+textarea {
+  min-height: 4rem;
 }
 
 /* 标签 pill。状态、计数、元数据。 */

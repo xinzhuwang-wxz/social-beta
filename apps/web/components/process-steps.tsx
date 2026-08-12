@@ -55,11 +55,11 @@ export function ProcessSteps() {
           }`}
         >
           <div className="flex items-baseline gap-3 sm:flex-col sm:gap-1">
-            <span className="mark text-ink-soft">{step.n}</span>
-            <span className="font-head text-lg text-accent">{step.role}</span>
+            <span className="t-cap text-ink-soft">{step.n}</span>
+            <span className="text-lg text-accent-deep">{step.role}</span>
           </div>
           <div>
-            <h3 className="font-head text-lg font-semibold text-ink">
+            <h3 className="text-lg font-semibold text-ink">
               {step.title}
             </h3>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-muted">

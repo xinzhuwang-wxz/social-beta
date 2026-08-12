@@ -28,18 +28,18 @@ export function PoolMessageForm({ poolId }: { poolId: string }) {
           required
           rows={1}
           placeholder="说句话……"
-          className="min-h-11 flex-1 resize-none border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+          className="min-h-11 flex-1 resize-none rounded-[var(--radius-sm)] border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
         />
         <button
           type="submit"
           disabled={pending}
-          className="shrink-0 border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+          className="shrink-0 btn btn-primary"
         >
           {pending ? '发送中…' : '发送'}
         </button>
       </form>
       {state.status === 'error' && (
-        <p role="alert" className="text-sm text-seal">
+        <p role="alert" className="text-sm text-alert">
           {state.message}
         </p>
       )}

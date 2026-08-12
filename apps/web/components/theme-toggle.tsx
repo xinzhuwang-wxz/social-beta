@@ -8,8 +8,8 @@ const STORAGE_KEY = "pool-theme";
 const ORDER: ThemePref[] = ["system", "light", "dark"];
 const LABEL: Record<ThemePref, string> = {
   system: "跟随系统",
-  light: "浅色",
-  dark: "深色",
+  light: "白天",
+  dark: "夜里",
 };
 
 // 按钮显示的状态来自 <html data-theme>，它是外部（DOM）的真相源，不是
@@ -63,7 +63,7 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={cycle}
-      className="group flex items-center gap-2 border border-border px-3 py-2 text-xs text-ink-muted transition-colors hover:border-border-strong hover:text-ink"
+      className="flex min-h-11 items-center gap-1.5 rounded-[var(--radius-pill)] border border-border-strong px-3.5 py-2 text-sm text-ink-muted transition-colors duration-200 hover:bg-surface-alt hover:text-ink"
       aria-label={`外观：${LABEL[pref]}。点击切换到下一种`}
     >
       <ThemeGlyph pref={pref} />

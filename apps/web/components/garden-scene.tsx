@@ -44,24 +44,25 @@ export function GardenScene({
     >
       {/* 背景两层色块。preserveAspectRatio=none 让它随容器拉伸，
           不需要为不同屏宽准备第二张图。 */}
+      {/* 远景只占顶上一条。草地必须盖住植物列表的整个区域 ——
+          植物换行时如果有一行踩不到绿色，整张图就散了：
+          它们看上去不像长在地里，而像飘在图上的贴纸。 */}
       <svg
         viewBox="0 0 400 200"
         preserveAspectRatio="none"
         aria-hidden="true"
         className="absolute inset-0 h-full w-full"
       >
-        {/* 远景树冠：四团色块，没有树干没有枝条 */}
-        <g fill="var(--grass-far)" opacity="0.85">
-          <ellipse cx="46" cy="118" rx="52" ry="30" />
-          <ellipse cx="150" cy="112" rx="64" ry="34" />
-          <ellipse cx="268" cy="118" rx="56" ry="30" />
-          <ellipse cx="368" cy="114" rx="50" ry="32" />
+        <g fill="var(--grass-far)" opacity="0.8">
+          <ellipse cx="46" cy="46" rx="52" ry="26" />
+          <ellipse cx="150" cy="40" rx="64" ry="30" />
+          <ellipse cx="268" cy="46" rx="56" ry="26" />
+          <ellipse cx="368" cy="42" rx="50" ry="28" />
         </g>
-        {/* 草地：一整块 */}
-        <path d="M0 138 Q200 122 400 138 L400 200 L0 200 Z" fill="var(--grass)" />
+        <path d="M0 62 Q200 44 400 62 L400 200 L0 200 Z" fill="var(--grass)" />
       </svg>
 
-      <div className="relative flex min-h-[13rem] flex-col justify-end gap-3 p-4 sm:min-h-[15rem] sm:p-5">
+      <div className="relative flex min-h-[13rem] flex-col justify-end gap-3 p-4 pt-12 sm:min-h-[15rem] sm:p-5 sm:pt-14">
         {plants.length === 0 ? (
           <p className="t-hand max-w-sm rounded-[var(--radius-md)] bg-surface-raised/90 px-4 py-3 text-base leading-relaxed text-ink">
             {emptyHint ?? '这里还空着。种下第一颗，它就会长出来。'}

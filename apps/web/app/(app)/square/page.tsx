@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation'
 import { DOMAINS, DOMAIN_LABEL, Domain } from '@pool/shared'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
-import { ColorField } from '@/components/color-field'
-import { PageShell } from '@/components/page-header'
+import { PageHeader, PageShell } from '@/components/page-header'
+import { MessengerBird } from '@/components/messenger-bird'
 import { IntentPublishForm } from '@/components/intent-publish-form'
 import { IntentBoard } from '@/components/intent-board'
 import { finishPublishAction, publishIntentAction, startPublishAction } from './actions'
@@ -34,14 +34,14 @@ export default async function SquarePage({ searchParams }: SquarePageProps) {
   const board = await engine.board(actor, { domain })
 
   return (
-    <div className="flex flex-col">
-      <ColorField eyebrow="种一颗" title="你想干什么" stage="seed">
-        <p className="max-w-xl text-sm leading-relaxed opacity-90">
-          一颗种子就是一个还没发生的行动愿望。怎么说话平时就怎么说——不用挑分类、不用选标签，抽错了当场就能改。
-        </p>
-      </ColorField>
-
-      <PageShell>
+    <PageShell>
+      <PageHeader
+        eyebrow="种一颗"
+        title="你想干什么"
+        lede="一颗种子就是一个还没发生的行动愿望。怎么说话平时就怎么说——不用挑分类、不用选标签，抽错了当场就能改。"
+        art={<MessengerBird state="carrying" className="size-20" label={null} />}
+      />
+      <>
         <IntentPublishForm
           startAction={startPublishAction}
           finishAction={finishPublishAction}
@@ -50,10 +50,10 @@ export default async function SquarePage({ searchParams }: SquarePageProps) {
 
         <section className="flex flex-col gap-4 border-t border-border pt-8">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <h2 className="font-head text-lg font-semibold text-ink">
+            <h2 className="text-lg font-semibold text-ink">
               {person.campusId} · 种子广场
             </h2>
-            <span className="mark text-ink-soft">{board.length} 颗</span>
+            <span className="t-cap text-ink-soft">{board.length} 颗</span>
           </div>
           <p className="text-sm leading-relaxed text-ink-soft">
             别人埋下的、还没长起来的愿望。冷启动期先让人自己翻，而不是给一个空推荐位假装智能。
@@ -63,8 +63,8 @@ export default async function SquarePage({ searchParams }: SquarePageProps) {
 
           <IntentBoard items={board} viewerPersonId={person.id} />
         </section>
-      </PageShell>
-    </div>
+      </>
+    </PageShell>
   )
 }
 
@@ -84,9 +84,9 @@ function DomainFilter({ active }: { active?: Domain }) {
 }
 
 function chipClass(isActive: boolean): string {
-  return `border px-2.5 py-1 text-xs transition-colors ${
+  return `flex min-h-11 items-center rounded-[var(--radius-pill)] border px-4 text-sm transition-colors duration-200 ${
     isActive
-      ? 'border-accent bg-accent text-accent-ink'
-      : 'border-border text-ink-muted hover:border-border-strong hover:text-ink'
+      ? 'border-accent-deep bg-accent-deep font-semibold text-accent-ink'
+      : 'border-border-strong text-ink-muted'
   }`
 }

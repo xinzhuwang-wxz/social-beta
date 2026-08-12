@@ -47,7 +47,7 @@ export default async function PoolNewPage({ searchParams }: PoolNewPageProps) {
       />
 
       <div className="border-l-2 border-border pl-4">
-        <p className="mark text-ink-soft">你种下的那颗</p>
+        <p className="t-cap text-ink-soft">你种下的那颗</p>
         <p className="mt-1.5 text-sm leading-relaxed text-ink break-anywhere">
           {sourceIntent.rawText}
         </p>
@@ -74,13 +74,13 @@ function MissingIntent() {
       <div className="flex flex-col gap-2">
         <Link
           href="/candidates"
-          className="text-sm text-accent underline decoration-dotted underline-offset-4"
+          className="text-sm text-accent-deep underline decoration-dotted underline-offset-4"
         >
           去候选看看 →
         </Link>
         <Link
           href="/square"
-          className="text-sm text-accent underline decoration-dotted underline-offset-4"
+          className="text-sm text-accent-deep underline decoration-dotted underline-offset-4"
         >
           或者去种一颗新的 →
         </Link>
@@ -99,7 +99,7 @@ function IntentNotMine() {
       />
       <Link
         href="/square"
-        className="self-start text-sm text-accent underline decoration-dotted underline-offset-4"
+        className="self-start text-sm text-accent-deep underline decoration-dotted underline-offset-4"
       >
         去种子广场 →
       </Link>

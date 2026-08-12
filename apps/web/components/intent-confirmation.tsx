@@ -33,7 +33,7 @@ export function IntentConfirmation({ intent, action }: IntentConfirmationProps) 
   const errorMessage = state.status === 'error' ? state.message : null
 
   return (
-    <div className="border-l-2 border-accent bg-accent-soft px-4 py-4 sm:px-5">
+    <div className="border-l-2 border-accent-deep bg-accent-soft px-4 py-4 sm:px-5">
       {/* key=当前记录 id：一旦重新发布产生新记录，整块编辑区连同内部的
           useState 一起重新挂载，天然拿到干净的初始值——不需要额外写
           effect 去手动同步「新数据进来了，把输入框也重置一下」。 */}
@@ -93,7 +93,7 @@ function ConfirmationBody({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="mark text-accent-strong">种下了 · 它还在土里</p>
+      <p className="t-cap font-semibold tracking-wide text-brand">种下了 · 它还在土里</p>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="text-sm leading-relaxed text-ink">
           <span className="text-ink-soft">我理解成了：</span>
@@ -102,7 +102,7 @@ function ConfirmationBody({
         <button
           type="button"
           onClick={() => setEditing((v) => !v)}
-          className="shrink-0 text-xs font-medium text-accent-strong underline decoration-dotted underline-offset-4"
+          className="shrink-0 text-xs font-medium text-brand underline decoration-dotted underline-offset-4"
         >
           {editing ? '收起' : '不对，改一下'}
         </button>
@@ -125,7 +125,7 @@ function ConfirmationBody({
                   aria-pressed={domain === d}
                   className={`border px-2.5 py-1 text-xs transition-colors ${
                     domain === d
-                      ? 'border-accent bg-accent text-accent-ink'
+                      ? 'border-accent-deep bg-accent-deep text-accent-ink'
                       : 'border-border text-ink-muted hover:border-border-strong hover:text-ink'
                   }`}
                 >
@@ -147,7 +147,7 @@ function ConfirmationBody({
           />
 
           {errorMessage && (
-            <p role="alert" className="text-sm text-seal">
+            <p role="alert" className="text-sm text-alert">
               {errorMessage}
             </p>
           )}
@@ -157,7 +157,7 @@ function ConfirmationBody({
               type="button"
               onClick={handleRepublish}
               disabled={pending}
-              className="self-start border border-accent bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+              className="self-start border border-accent-deep bg-accent-deep px-4 py-2 text-xs font-medium text-accent-ink transition-colors hover:border-accent-hover hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {pending ? '重新发布中…' : '重新发布'}
             </button>
@@ -190,7 +190,7 @@ function EditField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="border border-border bg-surface px-2.5 py-1.5 text-sm text-ink focus-visible:border-accent"
+        className="border border-border bg-surface px-2.5 py-1.5 text-sm text-ink focus-visible:border-accent-deep"
       />
     </label>
   )

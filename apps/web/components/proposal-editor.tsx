@@ -54,7 +54,7 @@ export function ProposalEditor({
         <button
           type="submit"
           disabled={rehearsePending}
-          className="border border-accent bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn btn-primary"
         >
           {rehearsePending
             ? '两边的 Agent 在聊…'
@@ -68,7 +68,7 @@ export function ProposalEditor({
       {rehearseState.status === 'error' && (
         <p
           role="alert"
-          className="border-l-2 border-seal bg-seal-soft px-4 py-3 text-sm text-seal-strong"
+          className="rounded-[var(--radius-md)] border border-alert/40 bg-alert/10 px-4 py-3 text-sm text-brand"
         >
           {rehearseState.message}
         </p>
@@ -107,13 +107,13 @@ function ProposalBody({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="border border-border bg-surface-raised">
+      <div className="card">
         <div className="border-b border-border px-4 py-2.5">
-          <span className="mark text-ink-soft">提案卡 · 草稿</span>
+          <span className="t-cap text-ink-soft">提案卡 · 草稿</span>
         </div>
 
         <div className="border-b border-border px-4 py-3">
-          <p className="mark text-ink-soft">共同话题</p>
+          <p className="t-cap text-ink-soft">共同话题</p>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {proposal.sharedTopics.map((t) => (
               <li
@@ -127,7 +127,7 @@ function ProposalBody({
         </div>
 
         <div className="border-b border-border px-4 py-3">
-          <p className="mark text-accent-strong">行动提案</p>
+          <p className="t-cap font-semibold tracking-wide text-brand">行动提案</p>
           <p className="mt-1.5 text-sm leading-relaxed text-ink break-anywhere">
             {proposal.actionProposal.what} · {proposal.actionProposal.when} ·{' '}
             {proposal.actionProposal.where}
@@ -138,7 +138,7 @@ function ProposalBody({
         </div>
 
         <div className="border-b border-border px-4 py-3">
-          <p className="mark text-ink-soft">风险提示</p>
+          <p className="t-cap text-ink-soft">风险提示</p>
           <p className="mt-1.5 text-sm leading-relaxed text-ink break-anywhere">
             {proposal.riskNote}
           </p>
@@ -148,7 +148,7 @@ function ProposalBody({
           <button
             type="button"
             onClick={() => setShowTranscript((v) => !v)}
-            className="text-xs text-accent underline decoration-dotted underline-offset-4"
+            className="text-xs text-accent-deep underline decoration-dotted underline-offset-4"
           >
             {showTranscript ? '收起往来记录' : '看看两边 Agent 具体聊了什么'}
           </button>
@@ -168,12 +168,12 @@ function ProposalBody({
       </div>
 
       {/* 全站只有真人落手的地方用朱色。这个框是其中之一。 */}
-      <form action={dispatch} className="border border-seal">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-seal bg-seal-soft px-4 py-2.5">
+      <form action={dispatch} className="border border-alert">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-alert bg-alert/10 px-4 py-2.5">
           <label htmlFor="opening" className="text-sm font-medium text-ink">
             第一句话——你说了算
           </label>
-          <span className="mark text-seal-strong">{edited ? '你改过了' : '草稿原文'}</span>
+          <span className="t-cap font-semibold tracking-wide text-brand">{edited ? '你改过了' : '草稿原文'}</span>
         </div>
 
         <div className="flex flex-col gap-3 px-4 py-4">
@@ -187,13 +187,13 @@ function ProposalBody({
             rows={4}
             value={opening}
             onChange={(e) => setOpening(e.target.value)}
-            className="border border-border bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-soft focus-visible:border-seal"
+            className="border border-border bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-soft focus-visible:border-alert"
           />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <button
               type="submit"
               disabled={pending || opening.trim().length === 0}
-              className="border border-seal bg-seal px-5 py-2.5 text-sm font-medium text-seal-ink transition-colors hover:border-seal-strong hover:bg-seal-strong disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary"
             >
               {pending ? '发出去…' : '我来说'}
             </button>
@@ -208,7 +208,7 @@ function ProposalBody({
             )}
           </div>
           {state.status === 'error' && (
-            <p role="alert" className="text-sm text-seal">
+            <p role="alert" className="text-sm text-alert">
               {state.message}
             </p>
           )}

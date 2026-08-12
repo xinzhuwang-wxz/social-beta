@@ -43,9 +43,9 @@ export function IntentPublishForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="border border-border bg-surface-raised">
+      <div className="card">
         <div className="border-b border-border px-4 py-2.5">
-          <span className="mark text-ink-soft">一颗种子 · 说一句就行</span>
+          <span className="t-cap text-ink-soft">一颗种子 · 说一句就行</span>
         </div>
 
         <form key={formKey} action={formAction} className="flex flex-col gap-3 p-4">
@@ -59,12 +59,12 @@ export function IntentPublishForm({
             minLength={MIN_LENGTH}
             rows={3}
             placeholder="说说你想干什么"
-            className="border border-border bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-soft focus-visible:border-accent"
+            className="rounded-[var(--radius-sm)] border border-border-strong bg-surface-raised px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
           />
           <button
             type="submit"
             disabled={pending}
-            className="self-start border border-accent bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+            className="self-start btn btn-primary"
           >
             {pending ? '种下去…' : '种下去'}
           </button>
@@ -75,7 +75,7 @@ export function IntentPublishForm({
         {state.status === 'error' && (
           <p
             role="alert"
-            className="border-l-2 border-seal bg-seal-soft px-4 py-3 text-sm text-seal-strong"
+            className="rounded-[var(--radius-md)] border border-alert/40 bg-alert/10 px-4 py-3 text-sm text-brand"
           >
             {state.message}
           </p>
@@ -131,8 +131,8 @@ function ClarifyCard({
   }
 
   return (
-    <form action={dispatch} className="border-l-2 border-accent bg-accent-soft px-4 py-4">
-      <p className="mark text-accent-strong">还差几句就更好找了</p>
+    <form action={dispatch} className="border-l-2 border-accent-deep bg-accent-soft px-4 py-4">
+      <p className="t-cap font-semibold tracking-wide text-brand">还差几句就更好找了</p>
       <p className="mt-2 text-sm leading-relaxed text-ink">
         补一两句，Agent 找人时能更准。不想答就跳过——种下去照样能被人看到。
       </p>
@@ -148,14 +148,14 @@ function ClarifyCard({
               name={q.slot}
               type="text"
               autoComplete="off"
-              className="border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+              className="rounded-[var(--radius-sm)] border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
             />
           </div>
         ))}
       </div>
 
       {state.status === 'error' && (
-        <p role="alert" className="mt-3 text-sm text-seal">
+        <p role="alert" className="mt-3 text-sm text-alert">
           {state.message}
         </p>
       )}
@@ -164,7 +164,7 @@ function ClarifyCard({
         <button
           type="submit"
           disabled={pending}
-          className="border border-accent bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn btn-primary"
         >
           {pending ? '种下去…' : '种下去'}
         </button>

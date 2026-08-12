@@ -2,8 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
-import { stageOf, stateLabel, STAGE_LABEL } from '@/lib/growth'
-import { ColorField } from '@/components/color-field'
+import { stageOf, stateLabel, STAGE_LABEL, STAGE_MEANING } from '@/lib/growth'
+import { PoolPlant } from '@/components/pool-plant'
 import { PoolBoardDetails } from '@/components/pool-board'
 import { PlanCard } from '@/components/plan-card'
 import { DayStatusPanel } from '@/components/day-status'
@@ -12,7 +12,7 @@ import { PoolMessageForm } from '@/components/pool-message-form'
 import { PoolArtifactForm } from '@/components/pool-artifact-form'
 import { PoolFeedbackForm } from '@/components/pool-feedback-form'
 import { PoolDormantPanel } from '@/components/pool-dormant-panel'
-import { ErrorBanner } from '@/components/page-header'
+import { ErrorBanner, SectionHead } from '@/components/page-header'
 import { confirmJoinAction, finishEventAction, sealPoolAction } from './actions'
 
 interface PoolPageProps {
@@ -21,15 +21,13 @@ interface PoolPageProps {
 }
 
 /**
- * /pool/[id] —— 行动房间。真人在这里协作、精灵在这里发卡、
- * 计划在这里被逐个确认、事件在这里回流、约定在这里休眠又醒来。
+ * /pool/[id] —— 行动房间。B 类产品页面：80% 标准 UI + 20% 世界观。
  *
- * 版面分两层：
- *   上层是主色域 —— 一块纯色 + 一个圆 + 圆里那株植物 + 阶段名 + 几个 pill。
- *     它是这一屏的情绪，也是「这件事活着」的那一眼。
- *   下层是编辑区 —— 看板明细、确认卡、时间线，全部方角细线，安静到底。
+ * 这里是要读信息、做决定的地方（谁确认了、什么时候出发、还差什么），
+ * 所以它不是农场地图。世界观只出现在顶部那一株植物上，
+ * 且**必须配一句文字说明现在在哪一步** —— 光看植物会让人不知道自己该干什么。
  *
- * 看板的内容全部来自 PoolEngine.poolBoard，页面不自己算 ——
+ * 看板内容全部来自 PoolEngine.poolBoard，页面不自己算：
  * 「已经定了什么」这种判断放在前端，迟早和引擎算出两个答案。
  */
 export default async function PoolPage({ params, searchParams }: PoolPageProps) {
@@ -64,124 +62,115 @@ export default async function PoolPage({ params, searchParams }: PoolPageProps) 
   const isDone = board.state === 'done'
   const isDormant = board.state === 'dormant'
   const wakeCard = isDormant ? await engine.wakeCardFor(poolId) : null
-
-  const meta = [
-    `${board.members.filter((m) => m.state === 'joined').length} 人在做这件事`,
-    `${board.artifactCount} 份回流物`,
-    stateLabel(board.state),
-  ]
+  const joined = board.members.filter((m) => m.state === 'joined')
 
   return (
-    <div className="flex flex-col">
-      <ColorField
-        eyebrow="行动房间"
-        title={STAGE_LABEL[stage]}
-        stage={stage}
-        artifacts={board.artifactCount}
-        meta={meta}
-      >
-        <p className="max-w-xl text-sm leading-relaxed opacity-90 break-anywhere">
-          {board.title ?? '（还没起名字）'}
-        </p>
-      </ColorField>
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-9">
+      {error && (
+        <div className="mb-5">
+          <ErrorBanner message={decodeURIComponent(error)} />
+        </div>
+      )}
 
-      <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-10">
-        {error && (
-          <div className="mb-6">
-            <ErrorBanner message={decodeURIComponent(error)} />
-          </div>
-        )}
+      {/* 20% 的世界观：一株植物 + 一句「现在在哪一步」。 */}
+      <header className="card mb-7 flex items-center gap-4 p-4 sm:gap-5 sm:p-5">
+        <PoolPlant
+          stage={stage}
+          artifacts={board.artifactCount}
+          animate
+          label={null}
+          className="h-24 w-20 shrink-0 sm:h-28 sm:w-24"
+        />
+        <div className="min-w-0">
+          <p className="t-cap font-medium tracking-wide text-accent-deep">行动房间</p>
+          <h1 className="t-h1 mt-1 break-anywhere">
+            {board.title ?? '（还没起名字）'}
+          </h1>
+          <p className="t-sec mt-1.5">
+            <span className="font-semibold text-brand">{STAGE_LABEL[stage]}</span>
+            {` · ${STAGE_MEANING[stage]}`}
+          </p>
+          <ul className="mt-3 flex flex-wrap gap-1.5">
+            <li className="pill">{stateLabel(board.state)}</li>
+            <li className="pill">{joined.length} 人在做这件事</li>
+            <li className="pill">{board.artifactCount} 份回流物</li>
+          </ul>
+        </div>
+      </header>
 
-        <div className="grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-10">
-          {/* 看板在 DOM 里排在时间线前面：窄屏上它就出现在最上方（PRD 要求
-              顶部持续展示），宽屏上它靠 lg:sticky 一直跟着滚。 */}
-          <div className="flex flex-col gap-6 lg:sticky lg:top-32 lg:col-start-1 lg:self-start">
-            <PoolBoardDetails board={board} />
+      <div className="grid gap-7 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-9">
+        {/* 看板在 DOM 里排在时间线前面：窄屏上它就在最上方（PRD 要求
+            顶部持续展示），宽屏上靠 lg:sticky 一直跟着滚。 */}
+        <div className="flex flex-col gap-5 lg:sticky lg:top-32 lg:col-start-1 lg:self-start">
+          <PoolBoardDetails board={board} />
 
-            {isDormant && (
-              <PoolDormantPanel
-                poolId={poolId}
-                nextHook={board.nextHook}
-                due={Boolean(wakeCard)}
+          {isDormant && (
+            <PoolDormantPanel poolId={poolId} nextHook={board.nextHook} due={Boolean(wakeCard)} />
+          )}
+
+          {board.state === 'planned' && (
+            <DayStatusPanel
+              poolId={poolId}
+              members={board.members}
+              statuses={board.statuses}
+              viewerPersonId={person.id}
+            />
+          )}
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-7 lg:col-start-2 lg:row-start-1">
+          {(isOngoing || board.plan) && (
+            <PlanCard
+              poolId={poolId}
+              plan={board.plan}
+              members={board.members}
+              viewerPersonId={person.id}
+              canEdit={isOngoing}
+            />
+          )}
+
+          <section className="flex flex-col gap-3">
+            <SectionHead title="时间线" hint="这件事是怎么走到这一步的" />
+            <PoolTimeline entries={timeline} viewerPersonId={person.id} poolId={poolId} />
+          </section>
+
+          {!isDormant && <PoolMessageForm poolId={poolId} />}
+
+          {isOngoing && (
+            <form
+              action={finishEventAction.bind(null, poolId)}
+              className="flex flex-wrap items-center gap-x-4 gap-y-2"
+            >
+              <button type="submit" className="btn btn-quiet btn-sm">
+                办完了
+              </button>
+              <p className="t-cap">
+                点了之后这株才谈得上开花——开花的依据是事真的做成了，不是聊得热闹。
+              </p>
+            </form>
+          )}
+
+          {isDone && (
+            <section className="flex flex-col gap-5">
+              <SectionHead
+                title="传张图，留句反馈"
+                hint="每一份返图都会让这株多开一朵花——它是「这件事真的发生过」的证据。"
               />
-            )}
-
-            {board.state === 'planned' && (
-              <DayStatusPanel
-                poolId={poolId}
-                members={board.members}
-                statuses={board.statuses}
-                viewerPersonId={person.id}
-              />
-            )}
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-8 lg:col-start-2 lg:row-start-1">
-            {(isOngoing || board.plan) && (
-              <PlanCard
-                poolId={poolId}
-                plan={board.plan}
-                members={board.members}
-                viewerPersonId={person.id}
-                canEdit={isOngoing}
-              />
-            )}
-
-            <section>
-              <h2 className="mark border-b border-border pb-2 text-ink-soft">
-                时间线 · 这件事是怎么走到这一步的
-              </h2>
-              <div className="mt-4">
-                <PoolTimeline entries={timeline} viewerPersonId={person.id} poolId={poolId} />
-              </div>
-            </section>
-
-            {!isDormant && <PoolMessageForm poolId={poolId} />}
-
-            {isOngoing && (
+              <PoolArtifactForm poolId={poolId} />
+              <PoolFeedbackForm poolId={poolId} />
               <form
-                action={finishEventAction.bind(null, poolId)}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-5"
+                action={sealPoolAction.bind(null, poolId)}
+                className="card flex flex-col gap-2 p-4"
               >
-                <button
-                  type="submit"
-                  className="border border-border px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-accent hover:text-accent"
-                >
-                  办完了
+                <button type="submit" className="btn btn-primary self-start">
+                  写完了，存进记忆
                 </button>
-                <p className="text-xs text-ink-soft">
-                  点了之后这株才谈得上开花——开花的依据是事真的做成了，不是聊得热闹。
+                <p className="t-cap">
+                  会生成一句回顾和下次的理由，随后这株结果歇下——不是销毁，是把籽留下。
                 </p>
               </form>
-            )}
-
-            {isDone && (
-              <section className="flex flex-col gap-6 border-t border-border pt-6">
-                <div>
-                  <h2 className="font-head text-lg font-semibold text-ink">传张图，留句反馈</h2>
-                  <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-                    每一份返图都会让这株多开一朵花——它是「这件事真的发生过」的证据。
-                  </p>
-                </div>
-                <PoolArtifactForm poolId={poolId} />
-                <PoolFeedbackForm poolId={poolId} />
-                <form
-                  action={sealPoolAction.bind(null, poolId)}
-                  className="flex flex-col gap-2 border-t border-border pt-5"
-                >
-                  <button
-                    type="submit"
-                    className="self-start border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong"
-                  >
-                    写完了，存进记忆
-                  </button>
-                  <p className="text-xs leading-relaxed text-ink-soft">
-                    会生成一句回顾和下次的理由，随后这株结果休眠——不是销毁，是把籽留下。
-                  </p>
-                </form>
-              </section>
-            )}
-          </div>
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -190,25 +179,22 @@ export default async function PoolPage({ params, searchParams }: PoolPageProps) 
 
 function NotJoinedYet({ poolId, error }: { poolId: string; error?: string }) {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col justify-center gap-4 px-5 py-16">
-      <h1 className="font-head text-xl font-semibold text-ink">这件事你还进不去</h1>
-      <p className="text-sm leading-relaxed text-ink-soft">
+    <div className="mx-auto flex w-full max-w-md flex-col justify-center gap-4 px-4 py-14">
+      <h1 className="t-h2">这件事你还进不去</h1>
+      <p className="t-sec">
         可能是收到了种子但还没回应，也可能这条链接不是给你的。
       </p>
       {error && <ErrorBanner message={decodeURIComponent(error)} />}
       <form action={confirmJoinAction.bind(null, poolId)}>
-        <button
-          type="submit"
-          className="border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong"
-        >
-          确认加入
+        <button type="submit" className="btn btn-primary">
+          算我一个
         </button>
       </form>
       <Link
         href="/invites"
-        className="text-sm text-accent underline decoration-dotted underline-offset-4"
+        className="t-sec font-medium text-accent-deep underline underline-offset-4"
       >
-        去看看收到的种子 →
+        去信箱看看 →
       </Link>
     </div>
   )

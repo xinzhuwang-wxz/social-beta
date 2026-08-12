@@ -72,8 +72,8 @@ export function PlanCard({
     return canEdit ? (
       <PlanStarter poolId={poolId} members={joined} />
     ) : (
-      <section className="border border-border p-4">
-        <p className="mark text-ink-soft">行动确认卡</p>
+      <section className="rounded-[var(--radius-md)] border border-border p-4">
+        <p className="t-cap text-ink-soft">行动确认卡</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-soft">这件事没有留下确认卡。</p>
       </section>
     )
@@ -82,10 +82,10 @@ export function PlanCard({
   const iConfirmed = plan.confirmedBy.some((p) => p.personId === viewerPersonId)
 
   return (
-    <section className="border border-accent">
-      <div className="flex items-baseline justify-between gap-3 border-b border-accent bg-accent-soft px-4 py-2.5">
-        <span className="mark text-accent-strong">行动确认卡</span>
-        <span className="mark text-accent-strong">
+    <section className="border border-accent-deep">
+      <div className="flex items-baseline justify-between gap-3 border-b border-accent-deep bg-accent-soft px-4 py-2.5">
+        <span className="t-cap font-semibold tracking-wide text-brand">行动确认卡</span>
+        <span className="t-cap font-semibold tracking-wide text-brand">
           {plan.pendingBy.length === 0 ? '全员已确认' : `还差 ${plan.pendingBy.length} 人`}
         </span>
       </div>
@@ -102,14 +102,14 @@ export function PlanCard({
 
       {plan.tasks.length > 0 && (
         <div className="border-t border-border px-4 py-3">
-          <p className="mark text-ink-soft">分工</p>
+          <p className="t-cap text-ink-soft">分工</p>
           <ul className="mt-2 flex flex-col gap-1.5">
             {plan.tasks.map((t) => (
               <li key={t.id} className="flex gap-2.5 text-sm leading-snug">
                 <span
                   aria-hidden="true"
                   className={`mt-1.5 size-2 shrink-0 border ${
-                    t.ownerName ? 'border-accent bg-accent' : 'border-border-strong'
+                    t.ownerName ? 'border-accent-deep bg-accent-deep' : 'border-border-strong'
                   }`}
                 />
                 <span className="min-w-0 break-anywhere">
@@ -126,12 +126,12 @@ export function PlanCard({
       )}
 
       <div className="border-t border-border px-4 py-3">
-        <p className="mark text-ink-soft">确认情况</p>
+        <p className="t-cap text-ink-soft">确认情况</p>
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {plan.confirmedBy.map((p) => (
             <li
               key={p.personId}
-              className="border border-accent bg-accent-soft px-2 py-0.5 text-xs text-accent-strong"
+              className="border border-accent-deep bg-accent-soft px-2 py-0.5 text-xs text-brand"
             >
               {p.displayName} 已确认
             </li>
@@ -153,7 +153,7 @@ export function PlanCard({
             <form action={confirmPlanAction.bind(null, poolId)}>
               <button
                 type="submit"
-                className="border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong"
+                className="btn btn-primary"
               >
                 我确认
               </button>
@@ -162,7 +162,7 @@ export function PlanCard({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="text-xs text-ink-soft underline decoration-dotted underline-offset-4 transition-colors hover:text-ink"
+            className="flex min-h-11 items-center px-1 text-sm text-ink-muted underline decoration-dotted underline-offset-4 transition-colors hover:text-ink"
           >
             改一版
           </button>
@@ -180,7 +180,7 @@ export function PlanCard({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3 border-b border-border py-2 last:border-b-0">
-      <dt className="mark w-16 shrink-0 pt-0.5 text-ink-soft">{label}</dt>
+      <dt className="t-cap w-16 shrink-0 pt-0.5 text-ink-soft">{label}</dt>
       <dd className="min-w-0 flex-1 text-sm leading-snug text-ink break-anywhere">{children}</dd>
     </div>
   )
@@ -199,8 +199,8 @@ function PlanStarter({ poolId, members }: { poolId: string; members: Member[] })
   }
 
   return (
-    <section className="border border-dashed border-border-strong p-4">
-      <p className="mark text-ink-soft">行动确认卡</p>
+    <section className="rounded-[var(--radius-md)] border border-dashed border-border-strong p-4">
+      <p className="t-cap text-ink-soft">行动确认卡</p>
       <p className="mt-2 text-sm leading-relaxed text-ink">
         聊到差不多了，就把它定下来：具体几点、在哪集合、谁带什么。
       </p>
@@ -213,7 +213,7 @@ function PlanStarter({ poolId, members }: { poolId: string; members: Member[] })
           <button
             type="submit"
             disabled={pending}
-            className="border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn btn-primary"
           >
             {pending ? 'Agent 在翻聊天记录…' : '让 Agent 汇总一版'}
           </button>
@@ -221,7 +221,7 @@ function PlanStarter({ poolId, members }: { poolId: string; members: Member[] })
         <button
           type="button"
           onClick={() => setBlank(true)}
-          className="border border-border px-4 py-2 text-sm text-ink transition-colors hover:border-accent hover:text-accent"
+          className="border border-border px-4 py-2 text-sm text-ink transition-colors hover:border-accent-deep hover:text-accent-deep"
         >
           自己填
         </button>
@@ -230,7 +230,7 @@ function PlanStarter({ poolId, members }: { poolId: string; members: Member[] })
         汇总出来的只是草稿，它只填聊天里真的聊到过的东西，剩下的留空给你补。提交与否由你。
       </p>
       {state.status === 'error' && (
-        <p role="alert" className="mt-3 text-sm text-seal">
+        <p role="alert" className="mt-3 text-sm text-alert">
           {state.message}
         </p>
       )}
@@ -293,7 +293,7 @@ function PlanForm({
 
   if (state.status === 'saved') {
     return (
-      <section className="border border-accent bg-accent-soft px-4 py-4">
+      <section className="border border-accent-deep bg-accent-soft px-4 py-4">
         <p className="text-sm leading-relaxed text-ink">
           卡提交了。现在等所有人逐个确认——全部确认之后，这件事才结成花苞。
         </p>
@@ -302,15 +302,15 @@ function PlanForm({
   }
 
   return (
-    <form action={dispatch} className="border border-accent">
-      <div className="flex items-baseline justify-between gap-3 border-b border-accent bg-accent-soft px-4 py-2.5">
-        <span className="mark text-accent-strong">
+    <form action={dispatch} className="border border-accent-deep">
+      <div className="flex items-baseline justify-between gap-3 border-b border-accent-deep bg-accent-soft px-4 py-2.5">
+        <span className="t-cap font-semibold tracking-wide text-brand">
           {plan ? '改一版确认卡' : '填一张确认卡'}
         </span>
         <button
           type="button"
           onClick={onClose}
-          className="text-xs text-accent-strong underline decoration-dotted underline-offset-4"
+          className="text-xs text-brand underline decoration-dotted underline-offset-4"
         >
           收起
         </button>
@@ -323,7 +323,7 @@ function PlanForm({
           </p>
         )}
         {plan && (
-          <p className="border-l-2 border-seal pl-3 text-xs leading-relaxed text-ink">
+          <p className="border-l-2 border-alert pl-3 text-xs leading-relaxed text-ink">
             改完提交之后，之前所有人的确认都会作废，需要重新确认一轮——大家确认的是那一版，不是这一版。
           </p>
         )}
@@ -360,7 +360,7 @@ function PlanForm({
                   setTasks((rows) => rows.map((r, j) => (j === i ? { ...r, what: e.target.value } : r)))
                 }
                 placeholder="要做的事"
-                className="min-w-0 flex-1 border border-border bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+                className="min-w-0 flex-1 border border-border bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
               />
               <select
                 name="taskOwner"
@@ -369,7 +369,7 @@ function PlanForm({
                   setTasks((rows) => rows.map((r, j) => (j === i ? { ...r, ownerId: e.target.value } : r)))
                 }
                 aria-label="谁来做"
-                className="border border-border bg-surface px-2.5 py-1.5 text-sm text-ink focus-visible:border-accent"
+                className="border border-border bg-surface px-2.5 py-1.5 text-sm text-ink focus-visible:border-accent-deep"
               >
                 <option value="">还没人认领</option>
                 {members.map((m) => (
@@ -383,14 +383,14 @@ function PlanForm({
           <button
             type="button"
             onClick={() => setTasks((rows) => [...rows, { what: '', ownerId: '' }])}
-            className="self-start text-xs text-accent underline decoration-dotted underline-offset-4"
+            className="self-start text-xs text-accent-deep underline decoration-dotted underline-offset-4"
           >
             加一项
           </button>
         </fieldset>
 
         {state.status === 'error' && (
-          <p role="alert" className="text-sm text-seal">
+          <p role="alert" className="text-sm text-alert">
             {state.message}
           </p>
         )}
@@ -399,7 +399,7 @@ function PlanForm({
           <button
             type="submit"
             disabled={pending}
-            className="border border-accent bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink transition-colors hover:border-accent-strong hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn btn-primary"
           >
             {pending ? '提交中…' : '提交这张卡'}
           </button>
@@ -430,7 +430,7 @@ function Input({
         id={`plan-${name}`}
         name={name}
         {...rest}
-        className="border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+        className="rounded-[var(--radius-sm)] border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent-deep"
       />
     </div>
   )

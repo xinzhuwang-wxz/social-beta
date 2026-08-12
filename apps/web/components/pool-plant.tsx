@@ -157,8 +157,16 @@ function Tree({
         strokeWidth="7"
         strokeLinecap="round"
       />
-      <ellipse cx={CX - 4} cy={crownCy} rx={rx} ry={ry} fill="var(--accent)" />
-      <ellipse cx={CX + 12} cy={crownCy - 6} rx={rx * 0.62} ry={ry * 0.68} fill="var(--grass)" />
+      {/* 两块相叠的同色系色块 = 水彩的受光面与背光面。
+          亮面要收在树冠里侧，压过边缘就会切出一道月牙，读起来像缺了一块。 */}
+      <ellipse cx={CX} cy={crownCy} rx={rx} ry={ry} fill="var(--accent)" />
+      <ellipse
+        cx={CX + rx * 0.26}
+        cy={crownCy - ry * 0.24}
+        rx={rx * 0.55}
+        ry={ry * 0.58}
+        fill="var(--grass)"
+      />
 
       {spots.map((p, i) => {
         if (stage === 'bud') {

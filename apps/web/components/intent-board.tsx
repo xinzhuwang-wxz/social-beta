@@ -53,10 +53,10 @@ function IntentBoardItem({ item, isMine }: { item: BoardEntry; isMine: boolean }
     <li className="grid grid-cols-1 gap-x-5 gap-y-2 border-b border-border py-4 sm:grid-cols-[5rem_1fr]">
       {/* 左栏是标本册的页边：领域 + 是谁的。正文永远从同一条竖线开始。 */}
       <div className="flex items-baseline gap-2 sm:flex-col sm:gap-1">
-        <span className="mark text-ink-soft">{DOMAIN_LABEL[item.domain]}</span>
+        <span className="t-cap text-ink-soft">{DOMAIN_LABEL[item.domain]}</span>
         <span className="text-xs text-ink-muted break-anywhere">
           {item.displayName}
-          {isMine && <span className="ml-1.5 text-accent">你</span>}
+          {isMine && <span className="ml-1.5 text-accent-deep">你</span>}
         </span>
       </div>
 
@@ -78,7 +78,7 @@ function IntentBoardItem({ item, isMine }: { item: BoardEntry; isMine: boolean }
         {isMine && (
           <Link
             href={`/candidates?intent=${item.id}`}
-            className="mt-3 inline-block border border-accent px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
+            className="btn btn-secondary btn-sm mt-3 inline-flex"
           >
             让 Agent 去找人 →
           </Link>

@@ -1,20 +1,17 @@
 /**
- * 主导航。路由名沿用代码里既有的词（square / candidates / pool / me / invites），
- * 标签用的是产品世界观里的词 —— 一次行动的完整生命周期：
+ * 主导航。路由名沿用代码里既有的词，标签用产品世界观里的词。
  *
- *   种一颗     /square      说一句人话，种下一颗种子
- *   候选       /candidates  你的 Agent 带回来的人
- *   收到的种子 /invites     别人的 Agent 送到你信箱的
- *   我的行动   /home        正在长的、开过花的、睡着的
- *   我的森林   /me          由真实经历长出来的画像
+ * `tab` 是底部标签栏用的短名（手机上一格只有 ~70px，放不下四个字），
+ * `label` 是桌面横排导航用的全名。
  *
- * /me 和 /invites 此前不在任何导航里 —— 两个真实存在、有内容的页面，
- * 用户只能靠手输 URL 才能到达。补进来不是加装饰，是修一个可达性缺陷。
+ * 五个标签对应五个真实存在、有内容的路由。规范里提到的「我」这一格
+ * 在本产品里就是「森林」—— 个人档案由真实经历构成，没有第二个资料页，
+ * **不为一个不存在的页面留一格空标签**。
  */
 export const PRIMARY_NAV = [
-  { href: "/square", label: "种一颗" },
-  { href: "/candidates", label: "候选" },
-  { href: "/invites", label: "收到的种子" },
-  { href: "/home", label: "我的行动" },
-  { href: "/me", label: "我的森林" },
+  { href: "/square", label: "种一颗", tab: "种子", icon: "seed" },
+  { href: "/candidates", label: "候选", tab: "候选", icon: "candidates" },
+  { href: "/invites", label: "收到的种子", tab: "信箱", icon: "inbox" },
+  { href: "/home", label: "我的花园", tab: "花园", icon: "garden" },
+  { href: "/me", label: "回忆森林", tab: "森林", icon: "forest" },
 ] as const;
