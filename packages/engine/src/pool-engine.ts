@@ -1,6 +1,6 @@
 import { asPerson, toVector, type Sql } from '@pool/db'
 import type { ModelGateway } from '@pool/model'
-import { SILENT, type AgentCard, type Domain, type InterventionDecision } from '@pool/shared'
+import { SILENT, type AgentCard, type Domain, type InterventionDecision, type PoolRole, type Visibility } from '@pool/shared'
 import {
   listBoard,
   listMyIntents,
@@ -29,6 +29,12 @@ import {
   poolsDueForWake,
   sealPool,
 } from './recap-service'
+import {
+  distillPerson,
+  membersOf,
+  recomputeRelations,
+  wipeL2,
+} from './distiller-service'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -648,6 +654,102 @@ export class PoolEngine {
     })
   }
 
+  // ==========================================================
+  // 蒸馏
+  // ==========================================================
+
+  /**
+   * 在收敛点触发蒸馏。
+   *
+   * 收敛点只有四个：池塘成行、事件回流、周期批量、关系温度重算。
+   * 不在每条消息触发 —— 一个池塘全生命周期写进 L2 的次数是个位数。
+   */
+  async distillAfterPool(poolId: string): Promise<void> {
+    await this.asSystem(async (tx) => {
+      const members = await membersOf(tx, poolId)
+      for (const personId of members) {
+        await distillPerson({ sql: tx, model: this.deps.model }, personId)
+        await recomputeRelations(tx, personId)
+      }
+    })
+  }
+
+  /** 我的切面。每条都能溯源到具体池塘 —— 用户问「你凭什么这么说我」要答得出来。 */
+  async myFacets(actor: ActorContext): Promise<FacetView[]> {
+    const me = await this.currentPerson(actor)
+    if (!me) return []
+    return this.act(
+      actor,
+      (tx) => tx<FacetView[]>`
+        select f.domain, f.summary, f.traits, f.visibility, f.n_pools as "nPools",
+               f.updated_at as "updatedAt",
+               coalesce(
+                 (select json_agg(json_build_object('poolId', p.id, 'title', p.title)
+                          order by p.occurred_at desc nulls last)
+                  from facet_evidence fe join pool p on p.id = fe.pool_id
+                  where fe.person_id = f.person_id and fe.domain = f.domain),
+                 '[]'::json
+               ) as evidence
+        from facet f where f.person_id = ${me.id}
+        order by f.n_pools desc
+      `,
+    )
+  }
+
+  /** 改一条切面的可见度。逐切面自控 —— 运动切面可以公开，情感切面可以只给自己。 */
+  async setFacetVisibility(
+    actor: ActorContext,
+    domain: Domain,
+    visibility: Visibility,
+  ): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.act(actor, (tx) => tx`
+      update facet set visibility = ${visibility}
+      where person_id = ${me.id} and domain = ${domain}
+    `)
+  }
+
+  /**
+   * 删掉一条切面。
+   *
+   * 删了还会不会长回来？会 —— 下次蒸馏时它会基于同样的池塘重新出现。
+   * 这是刻意的：切面是事实的投影，不是可以单独否认的声明。
+   * 用户真正要的是「别再这么说我」，那对应的是改可见度或退出那些池塘。
+   * 所以这里删除的语义是「现在别显示」，而不是「假装那些事没发生过」。
+   */
+  async deleteFacet(actor: ActorContext, domain: Domain): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.act(actor, (tx) => tx`
+      delete from facet where person_id = ${me.id} and domain = ${domain}
+    `)
+  }
+
+  /** 清空 L2。仅用于等价性回归与运维重建，不在任何业务路径上。 */
+  async wipeL2(campusId?: string): Promise<void> {
+    await this.asSystem((tx) => wipeL2(tx, campusId))
+  }
+
+  /** 全量重建 L2。等价性回归的另一半。 */
+  async rebuildL2(campusId?: string): Promise<{ people: number }> {
+    return this.asSystem(async (tx) => {
+      const people = await tx<{ id: string }[]>`
+        select distinct m.person_id as id from membership m
+        join pool p on p.id = m.pool_id
+        join person pe on pe.id = m.person_id
+        where m.state = 'joined' and p.state in ('active','done','dormant')
+          ${campusId ? tx`and pe.campus_id = ${campusId}` : tx``}
+        order by id
+      `
+      for (const p of people) {
+        await distillPerson({ sql: tx, model: this.deps.model }, p.id)
+        await recomputeRelations(tx, p.id)
+      }
+      return { people: people.length }
+    })
+  }
+
   /** 连接健康检查。用于启动自检与测试 harness。 */
   async ping(): Promise<{ db: boolean; model: ModelGateway['info'] }> {
     const rows = await this.deps.sql<{ ok: number }[]>`select 1 as ok`
@@ -699,4 +801,15 @@ function cardSummary(card: AgentCard): string {
     case 'catchup':
       return card.summary
   }
+}
+
+export interface FacetView {
+  domain: Domain
+  summary: string
+  traits: { roles?: PoolRole[]; preferences?: string[] }
+  visibility: Visibility
+  nPools: number
+  updatedAt: Date
+  /** 这条画像的依据。用户问「你凭什么这么说我」，答案在这里。 */
+  evidence: { poolId: string; title: string | null }[]
 }
