@@ -62,7 +62,11 @@ interface PoolEvidence {
  * 按 domain 分片，数量有界 —— 检索时只取对应切面，不用把整个人塞进 prompt，
  * 且蒸馏成本随领域数而非池塘数增长。
  */
-export async function distillPerson(deps: DistillDeps, personId: string): Promise<number> {
+export async function distillPerson(
+  deps: DistillDeps,
+  personId: string,
+  onlyDomains?: readonly string[],
+): Promise<number> {
   const evidence = await deps.sql<PoolEvidence[]>`
     select p.id as "poolId", coalesce(p.domain, 'other') as domain, p.title, m.role,
            (select e.summary from episode e
@@ -84,6 +88,12 @@ export async function distillPerson(deps: DistillDeps, personId: string): Promis
   }
 
   for (const [domain, pools] of byDomain) {
+    // 一次池塘收尾只可能改变那个池塘所属领域的画像。
+    // 不限定范围就会把这个人全部 8~12 个领域重蒸一遍 ——
+    // 模拟跑到第 9 周时单周耗时从 66s 涨到 1815s，就是这么来的：
+    // 成本随「用户touched过的领域数」线性增长，而每次收尾里 11/12 的调用都是白花的。
+    if (onlyDomains && !onlyDomains.includes(domain)) continue
+
     const draft = await deps.model.generate({
       task: 'facet.distill',
       schema: FacetDraft,

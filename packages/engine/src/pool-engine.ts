@@ -666,9 +666,17 @@ export class PoolEngine {
    */
   async distillAfterPool(poolId: string): Promise<void> {
     await this.asSystem(async (tx) => {
+      const [pool] = await tx<{ domain: string | null }[]>`
+        select domain from pool where id = ${poolId}
+      `
+      // 只重蒸这个池塘所属的领域。一次收尾不可能改变一个人在别的领域的画像，
+      // 而不限范围会让每次收尾的模型调用数随用户领域数线性增长。
+      const scope = [pool?.domain ?? 'other']
+
       const members = await membersOf(tx, poolId)
       for (const personId of members) {
-        await distillPerson({ sql: tx, model: this.deps.model }, personId)
+        await distillPerson({ sql: tx, model: this.deps.model }, personId, scope)
+        // 关系温度不打模型，全量重算很便宜
         await recomputeRelations(tx, personId)
       }
     })
