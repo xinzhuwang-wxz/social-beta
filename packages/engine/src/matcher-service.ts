@@ -36,12 +36,21 @@ interface Weights {
   complementarity: number
   social: number
   responsiveness: number
+  /**
+   * 时间贴合度。
+   *
+   * PRD 把「时间是否兼容」列为首版匹配维度，但要求是硬条件筛选。
+   * 这里做成**排序信号而非准入条件** —— ADR-0002 的理由仍然成立：
+   * 误判的代价不对称，筛掉一个合适的人，用户永远看不到也无从申诉。
+   * 时间不合的人排后面，但仍然看得见，由他自己决定要不要问一句。
+   */
+  time: number
 }
 
 const WEIGHTS: Record<WeightStage, Weights> = {
-  T0: { intent: 0.7, facet: 0, complementarity: 0, social: 0, responsiveness: 0.3 },
-  T1: { intent: 0.5, facet: 0.25, complementarity: 0, social: 0.1, responsiveness: 0.15 },
-  T2: { intent: 0.35, facet: 0.25, complementarity: 0.15, social: 0.1, responsiveness: 0.15 },
+  T0: { intent: 0.6, facet: 0, complementarity: 0, social: 0, responsiveness: 0.25, time: 0.15 },
+  T1: { intent: 0.45, facet: 0.2, complementarity: 0, social: 0.08, responsiveness: 0.12, time: 0.15 },
+  T2: { intent: 0.3, facet: 0.22, complementarity: 0.13, social: 0.08, responsiveness: 0.12, time: 0.15 },
 }
 
 export function stageFor(poolCount: number): WeightStage {
@@ -71,6 +80,44 @@ interface RecalledIntent {
   mutualPartners: number
   /** 我们直接共过几个池塘 */
   sharedPools: number
+  /** 他那条意图里的时间表述原文 */
+  whenText: string | null
+}
+
+/**
+ * 两条意图的时间贴合度。
+ *
+ * 时间在意图阶段是自由文本（ADR-0002），所以这里不做区间解析 ——
+ * 只看两句表述里提到的时间词有多少重合。粗糙，但它要做的事也很粗糙：
+ * 把「都说周六」的排在「一个说周六一个说下周」前面，仅此而已。
+ *
+ * 刻意不调模型来判断时间兼容性：那是每次匹配对每个候选各一次调用，
+ * 成本随候选数线性增长，而收益只是把一个排序信号算得更准一点。
+ *
+ * 没有任何时间词时返回 null —— 「没说时间」不等于「时间不合」。
+ */
+function timeAffinity(mine: string | null, theirs: string | null): number | null {
+  if (!mine || !theirs) return null
+  const tokens = (s: string): Set<string> => {
+    const found = new Set<string>()
+    for (const re of [
+      /周[一二三四五六日天末]/g,
+      /(上午|下午|早上|晚上|中午|夜里|凌晨)/g,
+      /(这|下|本)?(周|星期|礼拜)/g,
+      /\d{1,2}[点:：]/g,
+      /(今天|明天|后天|周末|工作日|平时)/g,
+    ]) {
+      for (const m of s.matchAll(re)) found.add(m[0])
+    }
+    return found
+  }
+  const a = tokens(mine)
+  const b = tokens(theirs)
+  if (a.size === 0 || b.size === 0) return null
+  let hit = 0
+  for (const t of a) if (b.has(t)) hit++
+  // Jaccard：两边都提到的越多越贴合
+  return hit / (a.size + b.size - hit)
 }
 
 /** 我在该领域承担过的角色，用于算互补性 */
@@ -79,6 +126,8 @@ interface SeekerProfile {
   campusId: string
   /** 我这条意图愿不愿意跨校匹配 */
   scope: 'campus' | 'open'
+  /** 我这条意图里的时间表述原文 */
+  whenText: string | null
   poolCount: number
   facetEmbedding: number[] | null
   roles: string[]
@@ -97,6 +146,7 @@ export interface Candidate {
     complementarity: number
     social: number
     responsiveness: number
+    time: number
     penalty: number
   }
 }
@@ -137,7 +187,8 @@ async function recall(
              as "facetSimilarity",
            coalesce(fr.roles, '{}') as roles,
            coalesce(mp.n, 0)::int as "mutualPartners",
-           coalesce(sp.n, 0)::int as "sharedPools"
+           coalesce(sp.n, 0)::int as "sharedPools",
+           i.slots->>'when' as "whenText"
     from intent i
     join person p on p.id = i.person_id
     left join responsiveness r on r.person_id = i.person_id
@@ -245,6 +296,7 @@ function score(row: RecalledIntent, seeker: SeekerProfile, w: Weights): Candidat
     // 没有历史的人给 0.5 中性先验而非 0：没数据不等于不回消息，
     // 给 0 会让新用户永远排不上，而他恰恰最需要被看见
     ['responsiveness', row.replyRate ?? 0.5],
+    ['time', timeAffinity(seeker.whenText, row.whenText)],
   ]
 
   const available = signals.filter(([k, v]) => v !== null && w[k] > 0)
@@ -330,6 +382,31 @@ async function finalRank(
     })
     if (picked.length >= MAX_CANDIDATES) break
   }
+
+  // 终排少给了就按精排分数回填。
+  //
+  // 起因是一条测试：给模型两个候选，一个时间贴合一个不贴合，它把不贴合的
+  // 直接丢了 —— 相当于模型替我们做了时间硬筛，而那恰恰是 ADR-0002 决定不做的事
+  // （误判的代价不对称：筛掉一个合适的人，用户永远看不到也无从申诉）。
+  //
+  // 修法不是加强 prompt —— 那是把产品行为压在模型服从性上，
+  // 而模型不服从的那天没有任何东西会报警。回填让「谁能被看见」这件事
+  // 由确定性的精排决定，模型只决定顺序与理由。
+  if (picked.length < Math.min(MIN_CANDIDATES, shortlist.length)) {
+    for (const row of shortlist) {
+      if (picked.length >= Math.min(MIN_CANDIDATES, shortlist.length)) break
+      if (picked.some((p) => p.personId === row.personId)) continue
+      picked.push({
+        personId: row.personId,
+        displayName: row.displayName,
+        intentId: row.intentId,
+        rawText: row.rawText,
+        // 没有模型给的理由时不编一个 —— 空理由是诚实的，编的理由是骗人的
+        reason: '',
+        score: row.score,
+      })
+    }
+  }
   return picked
 }
 
@@ -340,7 +417,13 @@ async function finalRank(
 export async function findCandidates(
   deps: MatchDeps,
   seeker: { personId: string; campusId: string; poolCount: number },
-  intent: { id: string; rawText: string; domain: string; scope: 'campus' | 'open' },
+  intent: {
+    id: string
+    rawText: string
+    domain: string
+    scope: 'campus' | 'open'
+    slots?: Record<string, unknown>
+  },
 ): Promise<Candidate[]> {
   const [embedding] = await deps.model.embed([intent.rawText])
   if (!embedding) throw new Error('embedding 生成失败')
@@ -360,6 +443,7 @@ export async function findCandidates(
     personId: seeker.personId,
     campusId: seeker.campusId,
     scope: intent.scope,
+    whenText: typeof intent.slots?.['when'] === 'string' ? (intent.slots['when'] as string) : null,
     poolCount: seeker.poolCount,
     facetEmbedding: mine?.embedding ? JSON.parse(mine.embedding) : null,
     roles: mine?.roles ?? [],

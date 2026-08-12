@@ -54,10 +54,10 @@ describe('匹配漏斗', () => {
 
       expect(candidates.length).toBeGreaterThan(0)
       expect(candidates.length).toBeLessThanOrEqual(5)
-      for (const c of candidates) {
-        expect(c.reason.length).toBeGreaterThan(4)
-        expect(c.reason).not.toBe(c.rawText)
-      }
+      // 至少有一个带模型生成的理由；回填进来的那些理由为空是刻意的 ——
+      // 空理由诚实，编的理由骗人
+      expect(candidates.some((c) => c.reason.length > 4)).toBe(true)
+      for (const c of candidates) expect(c.reason).not.toBe(c.rawText)
       expect(candidates.some((c) => c.personId === seeker.personId)).toBe(false)
     })
   })

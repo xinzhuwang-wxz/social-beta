@@ -310,9 +310,16 @@ export class PoolEngine {
   ): Promise<Candidate[]> {
     return this.asSystem(async (tx) => {
       const rows = await tx<
-        { id: string; rawText: string; personId: string; domain: string; scope: 'campus' | 'open' }[]
+        {
+          id: string
+          rawText: string
+          personId: string
+          domain: string
+          scope: 'campus' | 'open'
+          slots: Record<string, unknown>
+        }[]
       >`
-        select id, raw_text as "rawText", person_id as "personId", domain, scope
+        select id, raw_text as "rawText", person_id as "personId", domain, scope, slots
         from intent where id = ${intentId}
       `
       const intent = rows[0]
@@ -332,7 +339,13 @@ export class PoolEngine {
       return findCandidates(
         { sql: tx, model: this.deps.model },
         { personId: me.id, campusId: me.campusId, poolCount },
-        { id: intent.id, rawText: intent.rawText, domain: intent.domain, scope: intent.scope },
+        {
+          id: intent.id,
+          rawText: intent.rawText,
+          domain: intent.domain,
+          scope: intent.scope,
+          slots: intent.slots,
+        },
       )
     })
   }

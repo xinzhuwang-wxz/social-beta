@@ -173,10 +173,58 @@ describe('打分明细自洽', () => {
           c.score.facet +
           c.score.complementarity +
           c.score.social +
-          c.score.responsiveness -
+          c.score.responsiveness +
+          c.score.time -
           c.score.penalty
         // 打分明细要能解释总分，否则线上出了问题无法归因
         expect(Math.abs(sum - c.score.total)).toBeLessThan(1e-9)
+      }
+    } finally {
+      await ctx.cleanup()
+    }
+  })
+})
+
+describe('时间作为排序信号，不作准入', () => {
+  it('时间不合的人仍然出现在候选里 —— 筛掉他，用户永远看不到也无从申诉', async () => {
+    const ctx = await createTestContext()
+    try {
+      const seeker = await ctx.makePerson('周六想去的人')
+      const sameDay = await ctx.makePerson('也是周六')
+      const otherDay = await ctx.makePerson('只有周三')
+      await ctx.engine.publishIntent(sameDay.actor, '周六想去爬山走野线', { scope: 'campus' })
+      await ctx.engine.publishIntent(otherDay.actor, '周三想去爬山走野线', { scope: 'campus' })
+
+      const mine = await ctx.engine.publishIntent(seeker.actor, '周六想爬山，最好野线', {
+        scope: 'campus',
+      })
+      const cands = await ctx.engine.refreshCandidates(seeker.actor, mine.id)
+
+      // PRD 把时间列为首版匹配维度并要求硬筛。这里做成排序信号：
+      // 时间不合的排后面，但仍然看得见 —— 由他自己决定要不要问一句。
+      expect(cands.some((c) => c.personId === otherDay.personId)).toBe(true)
+    } finally {
+      await ctx.cleanup()
+    }
+  })
+
+  it('时间贴合的人得分更高', async () => {
+    const ctx = await createTestContext()
+    try {
+      const seeker = await ctx.makePerson('周六想去的人')
+      const sameDay = await ctx.makePerson('也是周六')
+      const otherDay = await ctx.makePerson('只有周三')
+      await ctx.engine.publishIntent(sameDay.actor, '周六想去爬山走野线', { scope: 'campus' })
+      await ctx.engine.publishIntent(otherDay.actor, '周三想去爬山走野线', { scope: 'campus' })
+
+      const mine = await ctx.engine.publishIntent(seeker.actor, '周六想爬山，最好野线', {
+        scope: 'campus',
+      })
+      const cands = await ctx.engine.refreshCandidates(seeker.actor, mine.id)
+      const same = cands.find((c) => c.personId === sameDay.personId)
+      const other = cands.find((c) => c.personId === otherDay.personId)
+      if (same && other) {
+        expect(same.score.time).toBeGreaterThan(other.score.time)
       }
     } finally {
       await ctx.cleanup()
