@@ -353,3 +353,45 @@ export async function setDayStatusAction(poolId: string, status: DayStatus): Pro
   }
   revalidatePath(poolPath(poolId))
 }
+
+/**
+ * 不再遇到这个人。
+ *
+ * 入口放在共同池塘里，因为这是你真的认识对方的地方 —— 让人凭一个 handle
+ * 去拉黑陌生人，等于把这里变成一个可以主动去找人「处理掉」的工具。
+ *
+ * 硬过滤双向生效，且对方不会收到任何通知：「谁拉黑了我」在校园这种
+ * 熟人密度下会变成真实的社交事件，而这个产品本该降低社交压力。
+ *
+ * 拉黑不解散池塘、不删除已经发生过的事 —— 已经一起做过的事是事实，
+ * 不因为关系变化而被改写。它只影响以后还会不会被推到一起。
+ */
+export async function blockFromPoolAction(poolId: string, personId: string): Promise<void> {
+  const actor = await requireActor()
+  try {
+    await getEngine().blockPerson(actor, personId)
+  } catch (err) {
+    failWith(poolId, err)
+  }
+  revalidatePath(`/pool/${poolId}`)
+}
+
+/**
+ * 生成回流海报。
+ *
+ * 只在真人点击时触发，绝不挂在页面渲染路径上 —— 生图比文本贵一个量级，
+ * 刷新一次页面就烧一次钱是不能接受的。引擎侧还会再挡一次：
+ * 没有返图直接拒绝，不生成一张「凭空想象你们那天」的图。
+ *
+ * 海报是这个产品里唯一保留的生图用途。共同作品是关系资产 ——
+ * 它是那件事真的发生过的凭证，而装饰性的生图不是。
+ */
+export async function makePosterAction(poolId: string): Promise<void> {
+  const actor = await requireActor()
+  try {
+    await getEngine().makePoster(actor, poolId)
+  } catch (err) {
+    failWith(poolId, err)
+  }
+  revalidatePath(`/pool/${poolId}`)
+}

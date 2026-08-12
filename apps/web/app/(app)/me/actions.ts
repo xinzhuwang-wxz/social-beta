@@ -39,3 +39,31 @@ export async function deleteFacetAction(domain: Domain): Promise<void> {
   }
   revalidatePath('/me')
 }
+
+/**
+ * 不再遇到某个人。
+ *
+ * 硬过滤是双向的：拉黑之后，他不会出现在你的候选里，你也不会出现在他的
+ * 候选里。这一点刻意不告诉对方 —— 「谁拉黑了我」在校园这种熟人密度下
+ * 会变成真实的社交事件，而这个产品本该降低社交压力，不是制造新的。
+ */
+export async function blockPersonAction(personId: string): Promise<void> {
+  const actor = await requireActor()
+  try {
+    await getEngine().blockPerson(actor, personId)
+  } catch (err) {
+    failWith(err)
+  }
+  revalidatePath('/me')
+}
+
+/** 撤销拉黑。名单是自己的，随时可以改主意。 */
+export async function unblockPersonAction(personId: string): Promise<void> {
+  const actor = await requireActor()
+  try {
+    await getEngine().unblockPerson(actor, personId)
+  } catch (err) {
+    failWith(err)
+  }
+  revalidatePath('/me')
+}

@@ -12,9 +12,10 @@ import { PoolMessageForm } from '@/components/pool-message-form'
 import { PoolArtifactForm } from '@/components/pool-artifact-form'
 import { PoolFeedbackForm } from '@/components/pool-feedback-form'
 import { PoolDormantPanel } from '@/components/pool-dormant-panel'
+import { PoolMembers } from '@/components/pool-members'
 import { CompletionPanel } from '@/components/completion-panel'
 import { ErrorBanner, SectionHead } from '@/components/page-header'
-import { confirmJoinAction, sealPoolAction } from './actions'
+import { confirmJoinAction, sealPoolAction, blockFromPoolAction, makePosterAction } from './actions'
 
 interface PoolPageProps {
   params: Promise<{ id: string }>
@@ -51,6 +52,22 @@ export default async function PoolPage({ params, searchParams }: PoolPageProps) 
     await engine.tickSpirit(poolId)
   } catch {
     // 忽略——见上面的注释
+  }
+
+  // 到点的提醒在这里投递。
+  //
+  // 提醒本该由定时任务推送，但那需要一个常驻进程；在拿到它之前，
+  // 「打开房间时补投」是诚实的降级：提醒仍然只在花苞之后触发、每种只发一次
+  // （markReminderSent 落库去重），只是送达时机从「准时」变成「你下次进来时」。
+  // 这一点在产品上可接受 —— 三个提醒里最要紧的「集合前两小时」，
+  // 用户那时本来就会打开房间看细节。
+  try {
+    const due = await engine.dueReminders()
+    for (const r of due.filter((d) => d.poolId === poolId)) {
+      await engine.deliverReminder(r)
+    }
+  } catch {
+    // 同上：提醒送不出去不该让整个房间打不开
   }
 
   const [board, timeline, completion] = await Promise.all([
@@ -109,6 +126,13 @@ export default async function PoolPage({ params, searchParams }: PoolPageProps) 
         <div className="flex flex-col gap-5 lg:sticky lg:top-32 lg:col-start-1 lg:self-start">
           <PoolBoardDetails board={board} />
 
+          <PoolMembers
+            poolId={poolId}
+            members={board.members}
+            viewerPersonId={person.id}
+            blockAction={blockFromPoolAction}
+          />
+
           {isDormant && (
             <PoolDormantPanel poolId={poolId} nextHook={board.nextHook} due={Boolean(wakeCard)} />
           )}
@@ -156,6 +180,22 @@ export default async function PoolPage({ params, searchParams }: PoolPageProps) 
                 }
               />
               <PoolArtifactForm poolId={poolId} />
+
+              {board.artifactCount > 0 && (
+                <form
+                  action={makePosterAction.bind(null, poolId)}
+                  className="card flex flex-col gap-2 p-4"
+                >
+                  <button type="submit" className="btn btn-secondary self-start">
+                    做一张海报
+                  </button>
+                  <p className="t-cap">
+                    用你们传上来的照片生成一张属于这次的海报。会真的调用生图模型，
+                    所以只有你点了才会发生。
+                  </p>
+                </form>
+              )}
+
               <PoolFeedbackForm poolId={poolId} />
               {isDone && (
                 <form

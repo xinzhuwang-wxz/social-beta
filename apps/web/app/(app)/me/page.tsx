@@ -6,7 +6,8 @@ import { getEngine } from '@/lib/engine'
 import { FacetList } from '@/components/facet-list'
 import { GardenScene, type GardenPlant } from '@/components/garden-scene'
 import { PageShell, EmptyState, ErrorBanner, SectionHead } from '@/components/page-header'
-import { setFacetVisibilityAction, deleteFacetAction } from './actions'
+import { BlockList } from '@/components/block-list'
+import { setFacetVisibilityAction, deleteFacetAction, unblockPersonAction } from './actions'
 
 const RECAP_DATE_FORMAT = new Intl.DateTimeFormat('zh-CN', {
   month: 'long',
@@ -48,10 +49,11 @@ export default async function MePage({ searchParams }: MePageProps) {
   const person = await engine.currentPerson(actor)
   if (!person) redirect('/onboarding')
 
-  const [facets, pools, recaps] = await Promise.all([
+  const [facets, pools, recaps, blocks] = await Promise.all([
     engine.myFacets(actor),
     engine.myPools(actor),
     engine.myForestRecaps(actor),
+    engine.myBlocks(actor),
   ])
 
   // 「还在长」只看池塘是不是已经走完（done/dormant），与森林的可见度门控无关——
@@ -158,6 +160,15 @@ export default async function MePage({ searchParams }: MePageProps) {
             deleteAction={deleteFacetAction}
           />
         )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionHead
+          title="不想再遇到的人"
+          aside={blocks.length > 0 ? <span className="t-cap">{blocks.length} 人</span> : undefined}
+          hint="双向生效，对方不会收到任何通知。随时可以撤销。"
+        />
+        <BlockList blocks={blocks} unblockAction={unblockPersonAction} />
       </section>
     </PageShell>
   )

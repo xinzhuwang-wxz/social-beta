@@ -160,7 +160,28 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+#
+# 这里原本只有一条 "https://127.0.0.1:3000" —— **https**，而本地开发跑的是 http，
+# 所以那条规则永远匹配不上，等于允许列表是空的：任何 emailRedirectTo 都会被拒，
+# 静默退回 site_url。症状是登录后浏览器落到 127.0.0.1:3000（那个端口上可能
+# 根本不是本应用），页面看起来「离开了登录页」，但会话压根没建立。
+#
+# 端口不写死一个：3000 常被别的项目占着，next dev 会自动顺延到 3001/3002。
+# localhost 与 127.0.0.1 两种写法都要列 —— 它们对浏览器是不同的源。
+additional_redirect_urls = [
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3000/**",
+  "http://localhost:3000",
+  "http://localhost:3000/**",
+  "http://127.0.0.1:3001",
+  "http://127.0.0.1:3001/**",
+  "http://localhost:3001",
+  "http://localhost:3001/**",
+  "http://127.0.0.1:3002",
+  "http://127.0.0.1:3002/**",
+  "http://localhost:3002",
+  "http://localhost:3002/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
