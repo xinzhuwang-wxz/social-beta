@@ -1,8 +1,15 @@
 import { redirect } from 'next/navigation'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
-import { PageHeader, PageShell, EmptyState, ErrorBanner } from '@/components/page-header'
+import {
+  PageHeader,
+  PageShell,
+  SectionHead,
+  EmptyState,
+  ErrorBanner,
+} from '@/components/page-header'
 import { MessengerBird } from '@/components/messenger-bird'
+import { SeedInboxCard } from '@/components/seed-inbox-card'
 import { replyToInviteAction } from './actions'
 
 interface InvitesPageProps {
@@ -17,15 +24,25 @@ const DATE_FORMAT = new Intl.DateTimeFormat('zh-CN', {
 })
 
 /**
- * /invites —— 收到的种子，ADR-0002「确认即过滤」的落地页。
+ * /invites —— 信箱：两条完全不同的回应模型收在同一个页面里。
  *
- * 只做「取 actor → 调 PoolEngine.myInvites → 渲染」。每颗种子只有两个出口：
- * 确认加入，或者不理它。「忽略」背后调用的是 leavePool 而不是某个要求填理由的接口 ——
- * 不确认本身就是答案，系统不需要知道为什么。
+ * 「收到的种子」是投递制的入口（docs/STORY.md 第②③阶段，见
+ * packages/engine/src/delivery-service.ts）：一颗种子发给多名候选，
+ * 候选各自表态愿意与否，发起人只在愿意的人里选。所以这里的主按钮
+ * 不叫「加入」，叫「愿意参与」——选没选中要等发起人决定，页面不预告结果，
+ * 也不会在这里把人直接带进池塘。
  *
- * 版面上刻意不给「忽略」任何负罪感：它和「确认」一样是一个平静的按钮，
- * 没有二次确认、没有「确定要放弃这次机会吗」。产品在这里的立场是
- * 「不确认没有任何代价」，那么界面就不该偷偷制造代价。
+ * 「池塘邀请」是旧的挑选制确认流程，现在只剩一处还在用：池塘休眠后
+ * 被派生唤醒时，原成员会重新变回 invited 状态，需要再确认一次
+ * （阶段⑨，见 pool-dormant-panel.tsx 的 acceptWakeAction）。
+ * `myInvites` / `replyToInvite` 因此保留，不能删——那一段的「算我一个」
+ * 才是真正的加入。
+ *
+ * 三条不对称可见性规则在种子这一段必须守住：候选人看不到推荐理由、
+ * 打分、竞争人数、以及最终被选中的是谁——`seedInbox` 走的是
+ * `my_seed_inbox` 视图，这几样在 SQL 层就不存在，前端也不用另外查。
+ * 落选的种子会安静地从信箱消失（转 closed 后被视图过滤掉），
+ * 文案上不写「你不合适」，只是不再出现。
  */
 export default async function InvitesPage({ searchParams }: InvitesPageProps) {
   const { error } = await searchParams
@@ -35,7 +52,8 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
   const person = await engine.currentPerson(actor)
   if (!person) redirect('/onboarding')
 
-  const invites = await engine.myInvites(actor)
+  const [seeds, invites] = await Promise.all([engine.seedInbox(actor), engine.myInvites(actor)])
+  const pendingCount = seeds.length + invites.length
 
   return (
     <PageShell>
@@ -43,16 +61,41 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
         eyebrow="信箱"
         title="有人想和你一起做一件事"
         lede="别人的信使鸟把种子送到了你这儿。不回应没有任何代价，也不需要说明理由——什么都不做本身就是最诚实的答案。"
-        aside={invites.length > 0 ? <span className="badge">{invites.length}</span> : undefined}
+        aside={pendingCount > 0 ? <span className="badge">{pendingCount}</span> : undefined}
         art={<MessengerBird state="delivering" className="size-20" label={null} />}
       />
-      <>
-        {error && <ErrorBanner message={decodeURIComponent(error)} />}
+
+      {error && <ErrorBanner message={decodeURIComponent(error)} />}
+
+      <section className="flex flex-col gap-3">
+        <SectionHead
+          title="收到的种子"
+          aside={seeds.length > 0 ? <span className="t-cap">{seeds.length} 颗</span> : undefined}
+          hint="表个态，发起人才看得到你——愿意参与可以附一句话，不感兴趣不用说理由。"
+        />
+
+        {seeds.length === 0 ? (
+          <EmptyState>
+            现在没有等你回应的种子。有人的心愿和你匹配上时，它会出现在这里。
+          </EmptyState>
+        ) : (
+          <ul className="flex flex-col gap-4">
+            {seeds.map((item) => (
+              <SeedInboxCard key={item.intentId} item={item} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionHead
+          title="池塘邀请"
+          aside={invites.length > 0 ? <span className="t-cap">{invites.length} 个</span> : undefined}
+          hint="已经成局过的池塘，因为有人醒来而重新邀请你回到原来的位置。"
+        />
 
         {invites.length === 0 ? (
-          <EmptyState>
-            现在没有等你回应的种子。有人接管了和你匹配上的意图时，它会出现在这里。
-          </EmptyState>
+          <EmptyState>没有等你确认的池塘邀请。</EmptyState>
         ) : (
           <ul className="flex flex-col gap-4">
             {invites.map((invite) => (
@@ -132,11 +175,13 @@ export default async function InvitesPage({ searchParams }: InvitesPageProps) {
             ))}
           </ul>
         )}
+      </section>
 
-        <p className="text-xs leading-relaxed text-ink-soft">
-          「算我一个」之后它才会破土——两个人都点头，那件事才开始长。加入之后聊下来发现不合适，随时还能退出。
-        </p>
-      </>
+      <p className="text-xs leading-relaxed text-ink-soft">
+        种子这边的「愿意参与」不代表已经定下来——发起人会在愿意的人里挑，选中后这里会直接长成一个新的池塘，
+        你就是里面的一员，不用再确认一次。池塘邀请那边的「算我一个」不一样，点了才真正加入，
+        聊下来发现不合适，随时还能退出。
+      </p>
     </PageShell>
   )
 }

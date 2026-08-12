@@ -287,7 +287,9 @@ async function main() {
 
             // 成行并回流
             if (rand() < 0.7) {
+              // 完成需要全员确认（S19）：两边都点了才真的转 done
               await engine.finishEvent(person.actor, poolId)
+              await engine.finishEvent(other.actor, poolId)
               if (rand() < 0.5) {
                 await engine.addArtifact(person.actor, poolId, {
                   kind: 'photo',
