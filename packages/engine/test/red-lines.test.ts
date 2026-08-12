@@ -320,3 +320,102 @@ describe('红线四 · 记忆内容由真人掌控', () => {
     expect(left[0]!.n).toBe(0)
   })
 })
+
+/**
+ * 建池路径的完备性。
+ *
+ * 红线一二说的是「真人决定连接对象、真人决定表述」。此前只有 takeOver 一条
+ * 路径被守着 —— 但那是挑选制时代的唯一入口。投递制上线后 chooseCompanion
+ * 也能建池，唤醒派生 acceptWake 也能建池，而它们当时没有任何红线断言。
+ *
+ * 一条红线只在它覆盖了**所有**入口时才成立。漏掉一个入口的红线不是红线，
+ * 是一种关于我们记得住多少的乐观。这个 describe 的职责是：
+ * 每当引擎里多出一条 `insert into pool`，这里就必须多一组断言。
+ */
+describe('红线一二 · 每一条建池路径都要真人签字', () => {
+  it('引擎里创建 pool 的路径只有三条 —— 多出一条就要在这里补断言', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const dir = join(import.meta.dirname, '../src')
+    const sites: string[] = []
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.ts'))) {
+      const src = readFileSync(join(dir, f), 'utf8')
+      for (const _ of src.matchAll(/insert\s+into\s+pool\s*\(/gi)) sites.push(f)
+    }
+    // takeover-service(接管) + pool-engine(投递选人、唤醒派生)
+    expect(sites.sort()).toEqual(['pool-engine.ts', 'pool-engine.ts', 'takeover-service.ts'])
+  })
+
+  it('投递制选人：空的第一句话建不出池塘', async () => {
+    const seeker = await ctx.makePerson('发起人')
+    const other = await ctx.makePerson('候选')
+    await ctx.engine.publishIntent(other.actor, '周末想找人一起打球')
+    const seed = await ctx.engine.publishIntent(seeker.actor, '周末想打球，缺一个')
+    await ctx.engine.deliverSeed(seeker.actor, seed.id)
+    await ctx.engine.replyToSeed(other.actor, seed.id, true)
+
+    // 空白开场白 —— 系统不替人开口
+    await expect(
+      ctx.engine.chooseCompanion(seeker.actor, seed.id, other.personId, '   '),
+    ).rejects.toThrow(/第一句话不能为空/)
+
+    const pools = await ctx.engine.myPools(seeker.actor)
+    expect(pools).toEqual([])
+  })
+
+  it('投递制选人：开场白落库时署的是真人，不是系统', async () => {
+    const seeker = await ctx.makePerson('发起人')
+    const other = await ctx.makePerson('候选')
+    await ctx.engine.publishIntent(other.actor, '想找人一起去看展')
+    const seed = await ctx.engine.publishIntent(seeker.actor, '周日想去看展，有人一起吗')
+    await ctx.engine.deliverSeed(seeker.actor, seed.id)
+    await ctx.engine.replyToSeed(other.actor, seed.id, true)
+
+    const { poolId } = await ctx.engine.chooseCompanion(
+      seeker.actor,
+      seed.id,
+      other.personId,
+      '周日下午两点美术馆门口？',
+    )
+    const [opening] = await ctx.sql<{ actorId: string | null; summary: string }[]>`
+      select actor_id as "actorId", summary from episode
+      where pool_id = ${poolId} and kind = 'opening'
+    `
+    // 红线三在这条路径上：第一句话必须有真人署名。
+    // chooseCompanion 整段跑在 asSystem 里（要写别人的 membership），
+    // RLS 的 with-check 拦不住它 —— 所以这条断言是这条路径唯一的守卫。
+    expect(opening?.actorId).toBe(seeker.personId)
+    expect(opening?.summary).toBe('周日下午两点美术馆门口？')
+  })
+
+  it('投递制选人：不能处置别人的种子', async () => {
+    const seeker = await ctx.makePerson('发起人')
+    const other = await ctx.makePerson('候选')
+    const stranger = await ctx.makePerson('路人')
+    await ctx.engine.publishIntent(other.actor, '想找人一起夜跑')
+    const seed = await ctx.engine.publishIntent(seeker.actor, '想找人夜跑')
+    await ctx.engine.deliverSeed(seeker.actor, seed.id)
+    await ctx.engine.replyToSeed(other.actor, seed.id, true)
+
+    await expect(
+      ctx.engine.chooseCompanion(stranger.actor, seed.id, other.personId, '一起？'),
+    ).rejects.toThrow(/无权/)
+  })
+
+  it('唤醒派生：非成员建不出派生池塘', async () => {
+    const { seeker, candidate, rehearsal } = await preparePair()
+    const stranger = await ctx.makePerson('路人')
+    const { poolId } = await ctx.engine.takeOver(seeker.actor, {
+      rehearsalId: rehearsal.rehearsalId,
+      opening: '周六六点见？',
+    })
+    await ctx.engine.confirmJoin(candidate.actor, poolId)
+    await ctx.engine.finishEvent(seeker.actor, poolId)
+    await ctx.engine.finishEvent(candidate.actor, poolId)
+    await ctx.engine.sealPool(seeker.actor, poolId)
+
+    // next_hook 是池塘的私有内容。陌生人既不能据此建池，
+    // 也不该借派生把私有约定当推送外发。
+    await expect(ctx.engine.acceptWake(stranger.actor, poolId)).rejects.toThrow()
+  })
+})
