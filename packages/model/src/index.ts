@@ -158,9 +158,13 @@ export function createModelGatewayFromEnv(): ModelGateway {
       model: process.env['OLLAMA_EMBED_MODEL'] ?? 'bge-m3',
       dimensions: Number(process.env['EMBED_DIMENSIONS'] ?? 1024),
     },
-    cassette: {
-      mode: (process.env['MODEL_CASSETTE_MODE'] as CassetteMode) ?? 'live',
-      dir: process.env['MODEL_CASSETTE_DIR'] ?? 'test/cassettes',
-    },
+    // 应用侧永远打真实模型，没有开关。
+    //
+    // 这里原本读一个环境变量，默认 live。问题是「默认安全」不等于「安全」：
+    // 谁在 .env.local 里写一句 replay，跑起来的产品就在放罐头，
+    // 页面照常渲染、没有任何提示，而我们会对着一个假产品做验收。
+    // 录制回放是测试的工具，测试自己显式传 mode 就够了 —— 让产品也能被
+    // 切成假的，是在给自己留一个不会响的警报。
+    cassette: { mode: 'live', dir: 'test/cassettes' },
   })
 }
