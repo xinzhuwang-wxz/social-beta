@@ -30,7 +30,7 @@ async function completeOne(
   await ctx.engine.postMessage(a.actor, poolId, '六点集合')
   await ctx.engine.postMessage(b.actor, poolId, '好')
   await ctx.engine.finishEvent(a.actor, poolId)
-  await ctx.engine.sealPool(poolId)
+  await ctx.engine.sealPool(a.actor, poolId)
   await ctx.engine.distillAfterPool(poolId)
   return poolId
 }
@@ -60,31 +60,45 @@ describe('三段调度按池塘数切档', () => {
     }
   })
 
-  it('有历史的人切到 T1，长期表示开始参与打分', async () => {
+  it('双方在同一领域都有切面时，长期取向相似度真的进到分数里', async () => {
     const ctx = await createTestContext()
     try {
       const me = await ctx.makePerson('有历史的人')
       const partner = await ctx.makePerson('老搭子')
-      await completeOne(ctx, me, partner, [
+      const poolId = await completeOne(ctx, me, partner, [
         '周六想去爬山，最好野线',
         '周末想徒步，走没开发的路线',
       ])
+      // 用池塘实际的领域，而不是赌模型把三句话分到同一个桶里 ——
+      // 那种断言压在模型服从性上，会让测试变成抽奖（progress.txt 坑 #6）
+      const [pool] = await ctx.sql<{ domain: string | null }[]>`
+        select domain from pool where id = ${poolId}
+      `
+      const domain = pool?.domain ?? 'other'
 
-      // 另一个人也有同领域的切面
-      const c1 = await ctx.makePerson('同领域的人')
-      const c2 = await ctx.makePerson('另一个')
-      await completeOne(ctx, c1, c2, [
-        '周末想爬野长城，带相机',
-        '想找人一起走箭扣，拍照',
-      ])
+      // 候选人在同一领域有切面。直接造，不依赖模型分类。
+      const candidate = await ctx.makePerson('同领域的候选人')
+      const [emb] = await ctx.engine.model.embed(['常走野线，习惯早出发，会带绳子'])
+      await ctx.sql`
+        insert into facet (person_id, domain, summary, traits, embedding, n_pools)
+        values (${candidate.personId}, ${domain}, '常走野线，习惯早出发，会带绳子',
+                ${ctx.sql.json({ roles: ['guide'] } as never)},
+                ${'[' + emb!.join(',') + ']'}::vector, 2)
+      `
+      await ctx.engine.publishIntent(candidate.actor, '这周末还想去爬野线，有人吗')
 
-      await ctx.engine.publishIntent(c1.actor, '这周末还想去爬野线，有人吗')
-      const mine = await ctx.engine.publishIntent(me.actor, '周六想爬山，走没开发的路线')
-      const cands = await ctx.engine.refreshCandidates(me.actor, mine.id)
+      // 我这条意图必须落在同一领域，否则取的是别的切面
+      const mine = await ctx.sql<{ id: string }[]>`
+        insert into intent (person_id, raw_text, domain, campus_id, expires_at, embedding, scope)
+        select ${me.personId}, '周六想爬山，走没开发的路线', ${domain}, ${ctx.campusId},
+               now() + interval '3 days', embedding, 'campus'
+        from intent where person_id = ${me.personId} order by created_at desc limit 1
+        returning id
+      `
+      const cands = await ctx.engine.refreshCandidates(me.actor, mine[0]!.id)
 
       expect(cands.length).toBeGreaterThan(0)
       const withFacet = cands.filter((c) => c.score.facet > 0)
-      // 双方都有同领域切面时，长期取向相似度必须真的进到分数里
       expect(withFacet.length).toBeGreaterThan(0)
     } finally {
       await ctx.cleanup()

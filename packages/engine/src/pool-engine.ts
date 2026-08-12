@@ -8,6 +8,7 @@ import {
   insertIntent,
   type BoardItem,
   type IntentRecord,
+  type IntentScope,
   type PreparedIntent,
 } from './intent-service'
 import { findCandidates, type Candidate } from './matcher-service'
@@ -155,14 +156,18 @@ export class PoolEngine {
    * 注意这里先取 person 再进事务：抽取与向量化要打两次模型，
    * 把它们放在事务里会让连接被长时间占住，而它们本来也不需要事务保护。
    */
-  async publishIntent(actor: ActorContext, rawText: string): Promise<IntentRecord> {
+  async publishIntent(
+    actor: ActorContext,
+    rawText: string,
+    opts: { scope?: IntentScope } = {},
+  ): Promise<IntentRecord> {
     const me = await this.currentPerson(actor)
     if (!me) throw new Error('尚未建档，无法发布意图')
     // 抽取与向量化在事务外完成 —— 它们要打两次模型，放进事务会长时间占住连接。
     // 但落库必须走用户身份，让 intent_write_own 策略生效：
     // 「模型调用别占事务」不是绕过 RLS 的理由。
     const prepared = await prepareIntent({ model: this.deps.model }, rawText)
-    return this.act(actor, (tx) => insertIntent(tx, me.id, me.campusId, prepared))
+    return this.act(actor, (tx) => insertIntent(tx, me.id, me.campusId, prepared, opts.scope ?? 'open'))
   }
 
   /**
@@ -239,8 +244,10 @@ export class PoolEngine {
     intentId: string,
   ): Promise<Candidate[]> {
     return this.asSystem(async (tx) => {
-      const rows = await tx<{ id: string; rawText: string; personId: string; domain: string }[]>`
-        select id, raw_text as "rawText", person_id as "personId", domain
+      const rows = await tx<
+        { id: string; rawText: string; personId: string; domain: string; scope: 'campus' | 'open' }[]
+      >`
+        select id, raw_text as "rawText", person_id as "personId", domain, scope
         from intent where id = ${intentId}
       `
       const intent = rows[0]
@@ -255,7 +262,7 @@ export class PoolEngine {
       return findCandidates(
         { sql: tx, model: this.deps.model },
         { personId: me.id, campusId: me.campusId, poolCount },
-        { id: intent.id, rawText: intent.rawText, domain: intent.domain },
+        { id: intent.id, rawText: intent.rawText, domain: intent.domain, scope: intent.scope },
       )
     })
   }
@@ -295,8 +302,10 @@ export class PoolEngine {
         if (!theirs) throw new Error('候选意图不存在或不可见')
 
         return {
-          seekerProfile: await disclosureProfileFor(tx, me.id),
-          candidateProfile: await disclosureProfileFor(tx, theirs.personId),
+          // 两侧都按「对方能看到什么」裁剪。我方那一份也不例外 ——
+          // 我的 Agent 替我说出去的话，不该包含我设为私密的内容。
+          seekerProfile: await disclosureProfileFor(tx, me.id, theirs.personId),
+          candidateProfile: await disclosureProfileFor(tx, theirs.personId, me.id),
           seekerIntent: mine.rawText,
           candidateIntent: theirs.rawText,
           candidateId: theirs.personId,
@@ -344,11 +353,14 @@ export class PoolEngine {
           candidateId: string
           proposal: unknown
           takenOverAt: Date | null
+          seekerIntent: string | null
+          candidateIntent: string | null
           domain: string | null
         }[]
       >`
         select rh.seeker_id as "seekerId", rh.candidate_id as "candidateId",
                rh.proposal, rh.taken_over_at as "takenOverAt",
+               rh.seeker_intent as "seekerIntent", rh.candidate_intent as "candidateIntent",
                i.domain
         from rehearsal rh
         left join intent i on i.id = rh.seeker_intent
@@ -364,6 +376,7 @@ export class PoolEngine {
         candidateId: r.candidateId,
         campusId: me.campusId,
         domain: r.domain ?? 'other',
+        intentIds: [r.seekerIntent, r.candidateIntent].filter((x): x is string => !!x),
         rehearsalId: input.rehearsalId,
         proposal: r.proposal as Parameters<typeof takeOver>[1]['proposal'],
         opening,
@@ -375,8 +388,11 @@ export class PoolEngine {
   async myInvites(actor: ActorContext): Promise<{ poolId: string; title: string | null; invitedAt: Date }[]> {
     const me = await this.currentPerson(actor)
     if (!me) return []
-    return this.act(
-      actor,
+    // 走系统通道：pool_read 策略要求 is_pool_member（state='joined'），
+    // 而被邀请者恰恰还不是 —— 用户身份下这条 join 会把整行过滤掉，
+    // 于是库里明明有待确认邀请，页面却显示「没有邀请」。
+    // 这里只取标题一个字段，且 where 已经把范围钉死在「发给我的邀请」上。
+    return this.asSystem(
       (tx) => tx<{ poolId: string; title: string | null; invitedAt: Date }[]>`
         select m.pool_id as "poolId", p.title, m.invited_at as "invitedAt"
         from membership m join pool p on p.id = m.pool_id
@@ -570,7 +586,11 @@ export class PoolEngine {
    * 多图融合保持主体一致性 —— 这让海报是「我们那次」的产物，
    * 而不是一张任何人都能生成的模板图。
    */
-  async makePoster(poolId: string): Promise<{ id: string }> {
+  async makePoster(actor: ActorContext, poolId: string): Promise<{ id: string }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    // 生图比文本贵得多，越权触发的代价更高
+    await this.assertMember(me.id, poolId)
     return this.asSystem(async (tx) => {
       const [pool] = await tx<{ title: string | null }[]>`
         select title from pool where id = ${poolId}
@@ -598,8 +618,25 @@ export class PoolEngine {
   }
 
   /** 收尾：写 recap、生成 next_hook、转休眠。池塘不销毁，它带着钩子睡着。 */
-  async sealPool(poolId: string): Promise<{ summary: string; nextHook: string }> {
+  async sealPool(actor: ActorContext, poolId: string): Promise<{ summary: string; nextHook: string }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.assertMember(me.id, poolId)
     return sealPool({ sql: this.deps.sql, model: this.deps.model }, poolId)
+  }
+
+  /**
+   * 在册成员校验。
+   *
+   * 收尾、生海报这类操作会触发真实模型调用并改写池塘状态，
+   * 却一度只有注释在描述「必须是成员」——注释拦不住任何人。
+   * 任何会花钱或改状态的方法都要先过这一关。
+   */
+  private async assertMember(personId: string, poolId: string): Promise<void> {
+    const [m] = await this.deps.sql<{ state: string }[]>`
+      select state from membership where pool_id = ${poolId} and person_id = ${personId}
+    `
+    if (m?.state !== 'joined') throw new Error('不是这个池塘的成员')
   }
 
   /** 到期待唤醒的池塘。 */
@@ -625,10 +662,18 @@ export class PoolEngine {
 
     return this.asSystem(async (tx) => {
       const [origin] = await tx<{ nextHook: string | null; campusId: string; domain: string | null }[]>`
-        select next_hook as "nextHook", campus_id as "campusId", domain
-        from pool where id = ${poolId} and state = 'dormant'
+        select p.next_hook as "nextHook", p.campus_id as "campusId", p.domain
+        from pool p
+        where p.id = ${poolId} and p.state = 'dormant'
+          -- 必须是原池的在册成员。缺了这一条，陌生人可以对任意休眠池塘派生新池，
+          -- 把原池全员写成 invited —— 而邀请的标题正是 next_hook，
+          -- 那是池塘的私有内容。既是越权邀请，也是把私有约定当推送外发。
+          and exists (
+            select 1 from membership m
+            where m.pool_id = p.id and m.person_id = ${me.id} and m.state = 'joined'
+          )
       `
-      if (!origin?.nextHook) throw new Error('这个池塘没有待唤醒的约定')
+      if (!origin?.nextHook) throw new Error('这个池塘没有待唤醒的约定，或你不是它的成员')
 
       const [fresh] = await tx<{ id: string }[]>`
         insert into pool (kind, state, campus_id, domain, title, parent_pool)

@@ -57,6 +57,13 @@ export interface PreparedIntent {
 }
 
 /**
+ * 匹配范围。默认放开跨校 ——
+ * 爬山吃饭确实同校才有意义，但比赛组队不该被校区切断，
+ * 而系统不知道你这次是哪种。把判断交给知道答案的那个人。
+ */
+export type IntentScope = 'campus' | 'open'
+
+/**
  * 抽取与向量化。**刻意不碰数据库** —— 这两步要打两次模型，
  * 放进事务会长时间占住连接。
  *
@@ -103,15 +110,17 @@ export async function insertIntent(
   personId: string,
   campusId: string,
   prepared: PreparedIntent,
+  scope: IntentScope = 'open',
 ): Promise<IntentRecord> {
   const rows = await tx<IntentRecord[]>`
-    insert into intent (person_id, raw_text, domain, slots, embedding, campus_id, expires_at)
+    insert into intent (person_id, raw_text, domain, slots, embedding, campus_id, expires_at, scope)
     values (
       ${personId}, ${prepared.rawText}, ${prepared.extraction.domain},
       ${tx.json(prepared.extraction.slots as never)},
       ${toVector(prepared.embedding)}::vector,
       ${campusId},
-      now() + ${`${prepared.ttlHours} hours`}::interval
+      now() + ${`${prepared.ttlHours} hours`}::interval,
+      ${scope}
     )
     returning id, raw_text as "rawText", domain, slots, expires_at as "expiresAt"
   `

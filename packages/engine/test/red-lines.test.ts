@@ -195,7 +195,85 @@ describe('红线三 · AI 永不代答', () => {
   })
 })
 
+describe('越权：注释描述的约束必须真的存在', () => {
+  it('非成员不能给别人的池塘收尾', async () => {
+    const { seeker, candidate, rehearsal } = await preparePair()
+    const { poolId } = await ctx.engine.takeOver(seeker.actor, {
+      rehearsalId: rehearsal.rehearsalId,
+      opening: '一起',
+    })
+    await ctx.engine.confirmJoin(candidate.actor, poolId)
+    await ctx.engine.postMessage(seeker.actor, poolId, '几点')
+    await ctx.engine.finishEvent(seeker.actor, poolId)
+
+    const outsider = await ctx.makePerson('局外人')
+    // 收尾会触发真实模型调用并改写 next_hook 与状态。
+    // 此前这条只有注释在描述，任何人拿到 uuid 就能对全站任意池塘触发。
+    await expect(ctx.engine.sealPool(outsider.actor, poolId)).rejects.toThrow(/不是这个池塘的成员/)
+  })
+
+  it('非成员不能唤醒别人的休眠池塘', async () => {
+    const { seeker, candidate, rehearsal } = await preparePair()
+    const { poolId } = await ctx.engine.takeOver(seeker.actor, {
+      rehearsalId: rehearsal.rehearsalId,
+      opening: '一起',
+    })
+    await ctx.engine.confirmJoin(candidate.actor, poolId)
+    await ctx.engine.postMessage(seeker.actor, poolId, '六点集合')
+    await ctx.engine.finishEvent(seeker.actor, poolId)
+    await ctx.engine.sealPool(seeker.actor, poolId)
+    await ctx.sql`update pool set next_hook_due_at = now() - interval '1 day' where id = ${poolId}`
+
+    const outsider = await ctx.makePerson('局外人')
+    // 此前陌生人可以派生新池并把原池全员写成 invited，
+    // 而邀请标题正是 next_hook —— 池塘的私有内容被当推送外发。
+    await expect(ctx.engine.acceptWake(outsider.actor, poolId)).rejects.toThrow(/不是它的成员/)
+  })
+
+  it('成行之后双方意图下架，不再被别人召回', async () => {
+    const { seeker, rehearsal } = await preparePair()
+    const before = await ctx.sql<{ n: number }[]>`
+      select count(*)::int as n from intent where pool_id is not null and campus_id = ${ctx.campusId}
+    `
+    await ctx.engine.takeOver(seeker.actor, {
+      rehearsalId: rehearsal.rehearsalId,
+      opening: '一起',
+    })
+    const after = await ctx.sql<{ n: number }[]>`
+      select count(*)::int as n from intent where pool_id is not null and campus_id = ${ctx.campusId}
+    `
+    // 不下架的话，已经组好队的人的意图仍挂在广场上、仍占别人的候选位
+    expect(after[0]!.n).toBe(before[0]!.n + 2)
+  })
+})
+
 describe('红线四 · 记忆内容由真人掌控', () => {
+  it('我自己的 private 切面也不会进我自己 Agent 的嘴', async () => {
+    const seeker = await ctx.makePerson('有私密切面的发起者')
+    const candidate = await ctx.makePerson('候选人')
+
+    const SECRET = '这段绝对不能出现在任何对外内容里'
+    await ctx.sql`
+      insert into facet (person_id, domain, summary, visibility, n_pools)
+      values
+        (${seeker.personId}, 'travel', '常走野线，习惯早出发', 'campus', 3),
+        (${seeker.personId}, 'life',   ${SECRET}, 'private', 2)
+    `
+
+    const mine = await ctx.engine.publishIntent(seeker.actor, '周六想去爬山，最好野线')
+    const theirs = await ctx.engine.publishIntent(candidate.actor, '周末想徒步，走没开发的路线')
+    const r = await ctx.engine.rehearseWith(seeker.actor, {
+      seekerIntentId: mine.id,
+      candidateIntentId: theirs.id,
+    })
+
+    // 红线四此前只验了「我看候选人」那一侧。「我的 Agent 替我说」这一侧无人看守 ——
+    // 而产品承诺的原文是「我的 AI 只带我授权可披露的切面去和对方 AI 交流」。
+    const everything = JSON.stringify({ proposal: r.proposal, transcript: r.transcript })
+    expect(everything).not.toContain(SECRET)
+  })
+
+
   it('private 切面不进入可披露视图 —— 由 RLS 保证，不是靠 prompt', async () => {
     const owner = await ctx.makePerson('有私密切面的人')
     const viewer = await ctx.makePerson('看的人')

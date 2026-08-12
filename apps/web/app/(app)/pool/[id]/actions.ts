@@ -131,11 +131,18 @@ export async function finishEventAction(poolId: string): Promise<void> {
   revalidatePath(poolPath(poolId))
 }
 
-/** 收尾：写回顾、生成 next_hook、转休眠。任何在册成员都能触发。 */
+/**
+ * 收尾：写回顾、生成 next_hook、转休眠。
+ *
+ * 成员校验在 PoolEngine 里做。此前这里 `await requireActor()` 却把返回值丢掉了，
+ * 引擎侧也不接 actor —— 于是任何登录用户拿到任一 pool 的 uuid，
+ * 就能对全站任意已结束池塘触发一次真实 LLM 调用并伪造它的 next_hook。
+ * 注释当时写着「任何在册成员都能触发」，而那个约束一行代码都没有。
+ */
 export async function sealPoolAction(poolId: string): Promise<void> {
-  await requireActor()
+  const actor = await requireActor()
   try {
-    await getEngine().sealPool(poolId)
+    await getEngine().sealPool(actor, poolId)
   } catch (err) {
     failWith(poolId, err)
   }

@@ -32,7 +32,7 @@ async function completedPool(ctx: TestContext, texts: [string, string]) {
     uri: 'https://example.invalid/1.jpg',
     caption: '山顶的日出',
   })
-  await ctx.engine.sealPool(poolId)
+  await ctx.engine.sealPool(a.actor, poolId)
   return { a, b, poolId }
 }
 

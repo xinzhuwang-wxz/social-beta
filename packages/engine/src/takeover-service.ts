@@ -26,6 +26,12 @@ export interface TakeoverInput {
    * 模拟里 894 个池塘全是 null 才让它暴露出来。
    */
   domain: string
+  /**
+   * 参与接管的两条意图。成行后必须下架 ——
+   * 否则已经组好队的人的意图仍挂在广场上、仍被别人召回成候选，
+   * 持续占用别人的候选位和自己的曝光配额。
+   */
+  intentIds: readonly string[]
   rehearsalId: string
   proposal: ProposalCard
   /** 真人最终决定发出去的第一句话。可能等于草稿，也可能被改过或完全重写。 */
@@ -77,6 +83,14 @@ export async function takeOver(sql: Sql, input: TakeoverInput): Promise<Takeover
     await tx`
       update rehearsal set taken_over_at = now() where id = ${input.rehearsalId}
     `
+    if (input.intentIds.length > 0) {
+      // 意图归池。PRD ID-2 的「只有落到池塘的意图才有资格进入 L1 并被蒸馏」
+      // 此前在数据上没有落点 —— 全仓零处写 intent.pool_id。
+      await tx`
+        update intent set pool_id = ${pool.id}
+        where id = any(${[...input.intentIds]}::uuid[])
+      `
+    }
     return { poolId: pool.id }
   }) as Promise<TakeoverResult>
 }

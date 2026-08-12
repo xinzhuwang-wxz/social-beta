@@ -77,6 +77,8 @@ interface RecalledIntent {
 interface SeekerProfile {
   personId: string
   campusId: string
+  /** 我这条意图愿不愿意跨校匹配 */
+  scope: 'campus' | 'open'
   poolCount: number
   facetEmbedding: number[] | null
   roles: string[]
@@ -113,6 +115,7 @@ async function recall(
 ): Promise<RecalledIntent[]> {
   const seekerId = seeker.personId
   const campusId = seeker.campusId
+  const seekerScope = seeker.scope
   const facetVec = seeker.facetEmbedding ? toVector(seeker.facetEmbedding) : null
 
   return sql<RecalledIntent[]>`
@@ -149,7 +152,9 @@ async function recall(
       where m.person_id = i.person_id and m.state = 'joined'
         and coalesce(p2.domain, 'other') = ${domain}
     ) fr on true
-    -- 二度关系：我们有几个共同的池塘伙伴
+    -- 二度关系：我们有几个共同的池塘伙伴。
+    -- 刻意不限校区 —— 一起参加过比赛的外校同学同样是真实的社交邻近，
+    -- 而「共同伙伴」这件事本来就不该被校区切断。
     left join lateral (
       select count(distinct mine.person_id) as n
       from membership a
@@ -157,6 +162,7 @@ async function recall(
       join membership theirs on theirs.person_id = mine.person_id
       join membership b on b.pool_id = theirs.pool_id and b.person_id = i.person_id
       where a.person_id = ${seekerId}
+        and a.state = 'joined' and mine.state = 'joined'
         and mine.person_id <> ${seekerId} and mine.person_id <> i.person_id
     ) mp on true
     -- 直接共过的池塘数
@@ -166,8 +172,12 @@ async function recall(
       where x.person_id = ${seekerId} and y.person_id = i.person_id
         and x.state = 'joined' and y.state = 'joined'
     ) sp on true
-    where i.campus_id = ${campusId}
-      and i.person_id <> ${seekerId}
+    where i.person_id <> ${seekerId}
+      -- 校区不再是硬墙（见 migration 0010）。跨校要双方都愿意：
+      -- 我这条意图声明了 open，且他那条也声明了 open。
+      -- 任一方想只在本校找，就只在本校找 —— 这是把判断交给知道答案的人，
+      -- 而不是让系统替所有人假设见面成本。
+      and (i.campus_id = ${campusId} or (i.scope = 'open' and ${seekerScope} = 'open'))
       and i.pool_id is null
       and i.expires_at > now()
       and i.embedding is not null
@@ -330,7 +340,7 @@ async function finalRank(
 export async function findCandidates(
   deps: MatchDeps,
   seeker: { personId: string; campusId: string; poolCount: number },
-  intent: { id: string; rawText: string; domain: string },
+  intent: { id: string; rawText: string; domain: string; scope: 'campus' | 'open' },
 ): Promise<Candidate[]> {
   const [embedding] = await deps.model.embed([intent.rawText])
   if (!embedding) throw new Error('embedding 生成失败')
@@ -349,6 +359,7 @@ export async function findCandidates(
   const profile: SeekerProfile = {
     personId: seeker.personId,
     campusId: seeker.campusId,
+    scope: intent.scope,
     poolCount: seeker.poolCount,
     facetEmbedding: mine?.embedding ? JSON.parse(mine.embedding) : null,
     roles: mine?.roles ?? [],

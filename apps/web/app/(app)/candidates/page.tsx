@@ -58,7 +58,7 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
         <ul className="flex flex-col gap-4">
           {candidates.map((candidate) => (
             <li key={candidate.personId}>
-              <CandidateCard candidate={candidate} />
+              <CandidateCard candidate={candidate} seekerIntentId={intentId} />
             </li>
           ))}
         </ul>

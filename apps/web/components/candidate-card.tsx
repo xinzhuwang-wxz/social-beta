@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Candidate } from '@pool/engine'
 
 /**
@@ -7,7 +8,13 @@ import type { Candidate } from '@pool/engine'
  * 意图里真实出现的内容（见 matcher-service.ts 的 RANK_SYSTEM），所以这里
  * 用视觉上最重的处理突出它，而不是当成卡片里普通的一行文字。
  */
-export function CandidateCard({ candidate }: { candidate: Candidate }) {
+export function CandidateCard({
+  candidate,
+  seekerIntentId,
+}: {
+  candidate: Candidate
+  seekerIntentId: string
+}) {
   return (
     <article className="border border-border bg-surface-raised p-4 sm:p-5">
       <h2 className="font-head text-base font-semibold text-ink">{candidate.displayName}</h2>
@@ -18,17 +25,15 @@ export function CandidateCard({ candidate }: { candidate: Candidate }) {
         <p className="mt-1 text-sm leading-relaxed text-ink">{candidate.reason}</p>
       </div>
 
-      {/* 接管流程是 M3 的范围（真人签字才能开池塘）。这里先如实标注
-          「即将开放」并禁用，不做一个点了没反应的假按钮。 */}
-      <button
-        type="button"
-        disabled
-        title="接管流程即将开放"
-        className="mt-4 flex w-fit cursor-not-allowed items-center gap-2 border border-border px-4 py-2 text-sm font-medium text-ink-soft opacity-60"
+      {/* 判据①的闭环就断在这一步：这个按钮一度是禁用的占位，
+          于是「候选卡 → 亲手接管」只能靠手工拼 URL 走通。
+          它指向接管确认页而不是直接建池 —— 连接对象与表述方式都要真人签字。 */}
+      <Link
+        href={`/pool/new?seekerIntentId=${encodeURIComponent(seekerIntentId)}&candidateIntentId=${encodeURIComponent(candidate.intentId)}`}
+        className="mt-4 flex w-fit items-center gap-2 border border-seal bg-seal px-4 py-2 text-sm font-medium text-seal-ink transition hover:bg-seal-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal"
       >
         我来说
-        <span className="text-xs">· 即将开放</span>
-      </button>
+      </Link>
     </article>
   )
 }

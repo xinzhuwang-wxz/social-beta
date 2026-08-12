@@ -295,7 +295,7 @@ async function main() {
                   caption: '当天拍的',
                 })
               }
-              await engine.sealPool(poolId)
+              await engine.sealPool(person.actor, poolId)
               await engine.distillAfterPool(poolId)
               person.poolCount++
               other.poolCount++

@@ -120,12 +120,14 @@ describe('匹配漏斗', () => {
     })
   })
 
-  it('跨校区的人不进入候选', async () => {
+  it('任一方声明 campus，跨校就不匹配 —— 收窄需要双方都愿意才跨', async () => {
     await withCampus(async (ctx) => {
       const other = await createTestContext()
       try {
         const outsider = await other.makePerson('外校')
-        await other.engine.publishIntent(outsider.actor, '周六爬山走野线找搭子')
+        await other.engine.publishIntent(outsider.actor, '周六爬山走野线找搭子', {
+          scope: 'campus',
+        })
 
         const local = await ctx.makePerson('本校')
         const mine = await ctx.engine.publishIntent(local.actor, '周六想爬山，野线')
@@ -137,10 +139,31 @@ describe('匹配漏斗', () => {
     })
   })
 
+  it('双方都是 open 时可以跨校匹配', async () => {
+    await withCampus(async (ctx) => {
+      const other = await createTestContext()
+      try {
+        const outsider = await other.makePerson('外校队友')
+        await other.engine.publishIntent(outsider.actor, 'ACM 组队，我做算法，还缺一个')
+
+        const local = await ctx.makePerson('本校')
+        const mine = await ctx.engine.publishIntent(local.actor, '想找人一起打 ACM，我写前端')
+        const candidates = await ctx.engine.refreshCandidates(local.actor, mine.id)
+        // 校区曾经是硬墙，把这类人直接筛没了 —— 而用户看不到，也无从申诉
+        expect(candidates.some((c) => c.personId === outsider.personId)).toBe(true)
+      } finally {
+        await other.cleanup()
+      }
+    })
+  })
+
   it('校区里没有别人时返回空数组，不凑数', async () => {
     await withCampus(async (ctx) => {
       const lonely = await ctx.makePerson('校区里唯一的人')
-      const mine = await ctx.engine.publishIntent(lonely.actor, '想找人一起研究量子计算')
+      // 用 campus scope 把范围收回本校，否则会召回其他并行用例造的人
+      const mine = await ctx.engine.publishIntent(lonely.actor, '想找人一起研究量子计算', {
+        scope: 'campus',
+      })
       const candidates = await ctx.engine.refreshCandidates(lonely.actor, mine.id)
       // 凑数会让用户看到明显不合适的人，从而不再相信这份推荐
       expect(candidates).toEqual([])

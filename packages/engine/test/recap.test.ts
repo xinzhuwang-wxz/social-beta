@@ -73,8 +73,8 @@ describe('收尾与唤醒', () => {
   it('收尾产出的 next_hook 引用聊天里真实提过的事，不是空话', async () => {
     const ctx = await createTestContext()
     try {
-      const { poolId } = await poolThatHappened(ctx)
-      const { summary, nextHook } = await ctx.engine.sealPool(poolId)
+      const { a, poolId } = await poolThatHappened(ctx)
+      const { summary, nextHook } = await ctx.engine.sealPool(a.actor, poolId)
 
       expect(summary.length).toBeGreaterThan(4)
       expect(nextHook.length).toBeGreaterThan(4)
@@ -92,7 +92,7 @@ describe('收尾与唤醒', () => {
     try {
       const { a, poolId } = await poolThatHappened(ctx)
       const before = await ctx.engine.poolTimeline(a.actor, poolId)
-      await ctx.engine.sealPool(poolId)
+      await ctx.engine.sealPool(a.actor, poolId)
 
       const [pool] = await ctx.sql<{ state: string; nextHook: string | null }[]>`
         select state, next_hook as "nextHook" from pool where id = ${poolId}
@@ -112,7 +112,8 @@ describe('收尾与唤醒', () => {
   it('拒绝为没有任何对话的池塘生成回顾', async () => {
     const ctx = await createTestContext()
     try {
-      const { personId } = await ctx.makePerson('孤独的人')
+      const lonely = await ctx.makePerson('孤独的人')
+      const personId = lonely.personId
       const [empty] = await ctx.sql<{ id: string }[]>`
         insert into pool (kind, state, campus_id, title)
         values ('activity', 'open', ${ctx.campusId}, '没人说过话的池塘')
@@ -122,7 +123,7 @@ describe('收尾与唤醒', () => {
         insert into membership (pool_id, person_id, state) values (${empty!.id}, ${personId}, 'joined')
       `
       // 编造的共同记忆比没有记忆更糟
-      await expect(ctx.engine.sealPool(empty!.id)).rejects.toThrow(/无法生成回顾/)
+      await expect(ctx.engine.sealPool(lonely.actor, empty!.id)).rejects.toThrow(/无法生成回顾/)
     } finally {
       await ctx.cleanup()
     }
@@ -131,8 +132,8 @@ describe('收尾与唤醒', () => {
   it('唤醒卡到期才出现', async () => {
     const ctx = await createTestContext()
     try {
-      const { poolId } = await poolThatHappened(ctx)
-      await ctx.engine.sealPool(poolId)
+      const { a, poolId } = await poolThatHappened(ctx)
+      await ctx.engine.sealPool(a.actor, poolId)
 
       // 刚收尾，钩子还没到期
       expect(await ctx.engine.wakeCardFor(poolId)).toBeNull()
@@ -151,7 +152,7 @@ describe('收尾与唤醒', () => {
     const ctx = await createTestContext()
     try {
       const { a, b, poolId } = await poolThatHappened(ctx)
-      await ctx.engine.sealPool(poolId)
+      await ctx.engine.sealPool(a.actor, poolId)
       await ctx.sql`update pool set next_hook_due_at = now() - interval '1 day' where id = ${poolId}`
 
       const { poolId: fresh, crewSuggested } = await ctx.engine.acceptWake(a.actor, poolId)

@@ -80,19 +80,23 @@ export interface RehearsalResult {
  */
 export async function disclosureProfileFor(
   tx: Sql,
-  personId: string,
+  ownerId: string,
+  viewerId: string,
 ): Promise<DisclosureProfile> {
   const [person] = await tx<{ id: string; displayName: string }[]>`
-    select id, display_name as "displayName" from person where id = ${personId}
+    select id, display_name as "displayName" from person where id = ${ownerId}
   `
   if (!person) throw new Error('对方不存在或不可见')
 
+  // 按 viewer 的视角裁剪，**即使 owner 就是调用者自己**。
+  // 直接查 facet 表会命中 RLS 的「本人看自己是全量」分支，
+  // 把 private 切面也带出来 —— 然后它会进自己 Agent 的 prompt、
+  // 进往来记录、再进对方 Agent 的输入。
   const facets = await tx<
     { domain: string; summary: string; traits: { roles?: string[] }; nPools: number; visibility: string }[]
   >`
     select domain, summary, traits, n_pools as "nPools", visibility
-    from facet where person_id = ${personId}
-    order by n_pools desc
+    from facets_disclosable_to(${ownerId}, ${viewerId})
   `
 
   return {

@@ -66,14 +66,30 @@ describe('意图广场', () => {
     expect(board.some((i) => i.rawText.includes('羽毛球'))).toBe(true)
   })
 
-  it('跨校区看不到 —— 见面成本决定了匹配必须在同校区内', async () => {
+  it('默认可以跨校看到 —— 一起参加比赛不一定同校', async () => {
     const other = await createTestContext()
     try {
       const outsider = await other.makePerson('外校的人')
-      await other.engine.publishIntent(outsider.actor, '想去爬山找搭子')
+      // 默认 scope='open'
+      await other.engine.publishIntent(outsider.actor, '想找人一起打 ACM，缺一个会算法的')
 
       const local = await ctx.makePerson('本校的人')
       const board = await ctx.engine.board(local.actor)
+      expect(board.some((i) => i.personId === outsider.personId)).toBe(true)
+    } finally {
+      await other.cleanup()
+    }
+  })
+
+  it('声明 campus 的意图只在本校可见 —— 收窄的判断交给发意图的人', async () => {
+    const other = await createTestContext()
+    try {
+      const outsider = await other.makePerson('外校的人')
+      await other.engine.publishIntent(outsider.actor, '想找人一起吃早饭', { scope: 'campus' })
+
+      const local = await ctx.makePerson('本校的人')
+      const board = await ctx.engine.board(local.actor)
+      // 吃早饭确实同校才有意义 —— 但这是发意图的人自己判断的，不是系统替他假设的
       expect(board.some((i) => i.personId === outsider.personId)).toBe(false)
     } finally {
       await other.cleanup()
