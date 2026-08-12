@@ -50,7 +50,8 @@
       ],
       "acceptanceCriteria": [
         "输入一句自然语言，返回结构化槽位（when / where / size / level / vibe）并标注 hard/soft",
-        "抽取结果在 UI 上可逐项编辑并保存",
+        "抽取结果在 UI 上原样显示给用户并可逐项编辑（「我理解成了：出行 · 周六 · 京郊 · 野线摄影」）",
+        "**不做多轮反问**。发需求是三秒钟的冲动，问三个问题就流失了；",
         "embedding 由真实模型产出、写入 pgvector，HNSW 索引生效",
         "`expires_at` 按 domain 设默认值；过期意图不出现在广场",
         "广场按 `campus_id` 硬隔离，跨校区不可见",
@@ -126,13 +127,15 @@
         7
       ],
       "acceptanceCriteria": [
-        "五个触发器实现，其余情形一律返回 `SILENT`",
-        "决策卡（时间/地点投票）与清单卡（角色认领，显示缺口）可用",
+        "`InterventionPolicy` 入参含池塘状态，行为按 `forming` / `active` 分段",
+        "`forming` 阶段主动发出破冰话题卡与角色清单卡；未收敛项各发一张决策卡",
+        "`active` 阶段仅在 stall / undecided / newcomer 三个断点介入，其余返回 `SILENT`",
         "卡片点击直接写 `episode`，不经二次 LLM 解析",
         "新成员入池收到此前发生了什么的摘要",
         "用户可全局调整介入阈值；`@` 可强制唤起",
         "Agent 发言占比可度量并上报",
-        "测试：**以负例为主** —— 大量正常对话场景断言 `SILENT`；五个触发器各自的正例；阈值调整确实改变行为"
+        "测试分段断言：`active` 阶段负例（沉默）数量显著多于正例；",
+        "`forming` 阶段的卡片数量有上限，不追问不催促"
       ],
       "passes": false
     },
@@ -147,6 +150,7 @@
       ],
       "acceptanceCriteria": [
         "返图上传至 Supabase Storage 并写入 `artifact`（含 embedding）",
+        "事件结束后每位成员可留一条反馈，落库为 `feedback`",
         "回流卡在「事件结束 > 12h 且零 artifact」时触发",
         "共同海报由 `doubao-seedream-4-0` 真实生成，多图融合保持主体一致",
         "`recap` episode 与 `next_hook` 由真实模型从本池塘内容生成",

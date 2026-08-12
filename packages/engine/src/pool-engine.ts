@@ -8,6 +8,7 @@ import {
   type BoardItem,
   type IntentRecord,
 } from './intent-service.js'
+import { findCandidates, type Candidate } from './matcher-service.js'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -147,6 +148,43 @@ export class PoolEngine {
     const me = await this.currentPerson(actor)
     if (!me) return []
     return this.act(actor, (tx) => listMyIntents(tx, me.id))
+  }
+
+  // ==========================================================
+  // 匹配
+  // ==========================================================
+
+  /**
+   * 为一条意图找候选。
+   *
+   * 走系统通道而非用户通道：召回要看到全校区的意图池，
+   * 而 RLS 的意图广场策略是为「浏览」设计的，不是为召回设计的。
+   * 隐私边界在这里由漏斗自身保证 —— 返回的候选卡只含对方主动发布的意图内容。
+   */
+  async findCandidates(actor: ActorContext, intentId: string): Promise<Candidate[]> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+
+    return this.asSystem(async (tx) => {
+      const rows = await tx<{ id: string; rawText: string; personId: string }[]>`
+        select id, raw_text as "rawText", person_id as "personId"
+        from intent where id = ${intentId}
+      `
+      const intent = rows[0]
+      if (!intent) throw new Error('意图不存在')
+      // 只能为自己的意图找候选 —— 否则任何人都能拿别人的意图去探测全校区
+      if (intent.personId !== me.id) throw new Error('无权为他人的意图匹配')
+
+      const [{ n: poolCount } = { n: 0 }] = await tx<{ n: number }[]>`
+        select count(*)::int as n from membership
+        where person_id = ${me.id} and left_at is null
+      `
+      return findCandidates(
+        { sql: tx, model: this.deps.model },
+        { personId: me.id, campusId: me.campusId, poolCount },
+        { id: intent.id, rawText: intent.rawText },
+      )
+    })
   }
 
   /** 连接健康检查。用于启动自检与测试 harness。 */

@@ -1,4 +1,4 @@
 {
   "type": "json",
-  "value": "{\"test\":\"data\"}"
+  "value": "{\"key\": \"value\"}"
 }

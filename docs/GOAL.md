@@ -27,7 +27,7 @@
 
 硬约束：不用 stub/mock/假数据（唯一例外 #12 的模拟学生，且必须驱动同一条缝）；
 测试跑真实 Postgres，模型侧 cassette 录制回放真实响应；隐私边界落 RLS 不落 prompt；
-Agent 默认 SILENT 是主路径，测试负例多于正例。
+精灵按池塘状态分段(ADR-0004)：forming 主动破冰，active 沉默为主、测试负例多于正例。
 已固定不要改回：chat=doubao-seed-2-0-mini-260428，embedding=bge-m3/1024 维(ADR-0001)，
 不做时间窗硬过滤、确认即过滤(ADR-0002)，不用 ORM，不引入 A2A协议/AG2/CAMEL/LiteLLM。
 规格见 issue #1 与 DESIGN.md，冲突以 #1 为准。

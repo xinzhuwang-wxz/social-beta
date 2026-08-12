@@ -59,6 +59,9 @@ export async function asPerson<T>(
   return sql.begin(async (tx) => {
     await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: authUserId })}, true)`
     await tx`select set_config('role', 'authenticated', true)`
-    return fn(tx as Sql)
+    // postgres 库里事务内的 tx 类型（TransactionSql）比 Sql 多几个方法、少几个属性，
+    // 结构上互不兼容，但运行时就是同一个可执行 SQL 的对象——这里断言的是「能干同样的事」，
+    // 不是「类型完全相同」，所以要过一道 unknown 让 TS 放行。
+    return fn(tx as unknown as Sql)
   }) as Promise<T>
 }
