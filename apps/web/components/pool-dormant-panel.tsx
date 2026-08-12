@@ -6,6 +6,16 @@ import { PoolPlant } from './pool-plant'
  *
  * `due` 由页面调 wakeCardFor(poolId) 判出来 —— 到期与否是数据库里
  * next_hook_due_at 说了算，这里不重复算时间。
+ *
+ * **到期与否只决定文案，不决定按钮能不能点。**
+ *
+ * 这里原本是 `disabled={!due}`，理由看起来很正当：还没到日子。
+ * 但那把两件事混成了一件 —— 到期时间该管的是**系统什么时候主动来提醒**，
+ * 不是**用户什么时候可以行动**。一个人记得他们说过还想去夜爬、现在就想约，
+ * 产品没有任何理由拦着他说「还没到唤醒的时间」。
+ *
+ * 引擎侧从来没有这道限制（acceptWake 只查成员身份与休眠状态），
+ * 所以这一版不是放宽了规则，是把一条本来就不该有的规则从界面上撤掉。
  */
 export function PoolDormantPanel({
   poolId,
@@ -25,19 +35,14 @@ export function PoolDormantPanel({
           {nextHook ?? '还没有具体的下次理由。'}
         </p>
         <form action={acceptWakeAction.bind(null, poolId)} className="mt-4">
-          <button
-            type="submit"
-            disabled={!due}
-            title={due ? undefined : '还没到唤醒的时间'}
-            className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            再约一次
+          <button type="submit" className="btn btn-primary">
+            {due ? '再约一次' : '现在就再约'}
           </button>
         </form>
         <p className="mt-2 text-xs leading-relaxed text-ink-soft">
           {due
             ? '会长出新的一株，原来这株继续睡着——上次的记忆不会被覆盖。'
-            : '还没到时间。到了之后这里会重新可点，它也会自己回来问你们一次。'}
+            : '到点它会自己回来问你们一次。等不及也可以现在就约——会长出新的一株，原来这株继续睡着。'}
         </p>
       </div>
     </section>

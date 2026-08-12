@@ -783,12 +783,29 @@ export class PoolEngine {
     })
   }
 
-  /** 收尾：写 recap、生成 next_hook、转休眠。池塘不销毁，它带着钩子睡着。 */
+  /**
+   * 收尾：写 recap、生成 next_hook、蒸馏画像、转休眠。
+   * 池塘不销毁，它带着钩子睡着。
+   *
+   * 蒸馏放在这里而不是让调用方自己记得调。此前 distillAfterPool 只有模拟脚本
+   * 调过，网页从来没调过 —— 于是真实用户封存一个池塘之后**永远不会长出画像**，
+   * 而「人是他参与过的事件的集合」正是这个产品的核心命题。
+   * 一条只有测试脚本走过的路径，等于没有这条路径。
+   *
+   * 蒸馏失败不该让收尾失败：recap 与 next_hook 已经落库，
+   * 画像是它们的下游派生物，L2 本来就允许重建（rebuildL2）。
+   */
   async sealPool(actor: ActorContext, poolId: string): Promise<{ summary: string; nextHook: string }> {
     const me = await this.currentPerson(actor)
     if (!me) throw new Error('尚未建档')
     await this.assertMember(me.id, poolId)
-    return sealPool({ sql: this.deps.sql, model: this.deps.model }, poolId)
+    const sealed = await sealPool({ sql: this.deps.sql, model: this.deps.model }, poolId)
+    try {
+      await this.distillAfterPool(poolId)
+    } catch {
+      // 见上：画像可以事后重建，收尾不能回滚
+    }
+    return sealed
   }
 
   /**
