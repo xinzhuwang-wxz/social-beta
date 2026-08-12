@@ -1,4 +1,4 @@
-import { asPerson, type Sql } from '@pool/db'
+import { asPerson, toVector, type Sql } from '@pool/db'
 import type { ModelGateway } from '@pool/model'
 import { SILENT, type AgentCard, type Domain, type InterventionDecision } from '@pool/shared'
 import {
@@ -24,6 +24,11 @@ import {
   makeRoster,
   readPulse,
 } from './spirit-service'
+import {
+  makeWakeCard,
+  poolsDueForWake,
+  sealPool,
+} from './recap-service'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -479,6 +484,168 @@ export class PoolEngine {
       insert into episode (pool_id, kind, summary, payload, actor_id)
       values (${poolId}, 'tap', ${optionId}, ${tx.json({ cardId, optionId } as never)}, ${me.id})
     `)
+  }
+
+  // ==========================================================
+  // 回流与唤醒
+  // ==========================================================
+
+  /** 上传回流物。向量化后可按内容检索共同记忆。 */
+  async addArtifact(
+    actor: ActorContext,
+    poolId: string,
+    input: { kind: string; uri: string; caption?: string },
+  ): Promise<{ id: string }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+
+    // 向量化在事务外 —— 同 publishIntent 的理由
+    const [embedding] = input.caption
+      ? await this.deps.model.embed([input.caption])
+      : [null]
+
+    return this.act(actor, async (tx) => {
+      const [row] = await tx<{ id: string }[]>`
+        insert into artifact (pool_id, author_id, kind, uri, caption, embedding)
+        values (${poolId}, ${me.id}, ${input.kind}, ${input.uri}, ${input.caption ?? null},
+                ${embedding ? toVector(embedding) : null}::vector)
+        returning id
+      `
+      if (!row) throw new Error('回流物写入失败')
+      return row
+    })
+  }
+
+  /** 事件成行结束。转 done，等待回流。 */
+  async finishEvent(actor: ActorContext, poolId: string): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.asSystem(async (tx) => {
+      const [m] = await tx<{ state: string }[]>`
+        select state from membership where pool_id = ${poolId} and person_id = ${me.id}
+      `
+      if (m?.state !== 'joined') throw new Error('不是这个池塘的成员')
+      await tx`update pool set state = 'done', occurred_at = coalesce(occurred_at, now()) where id = ${poolId}`
+      await tx`
+        insert into episode (pool_id, kind, summary, actor_id)
+        values (${poolId}, 'happened', '事情办完了', ${me.id})
+      `
+    })
+  }
+
+  /** 留一条反馈。轻到能顺手填完 —— 填不了的反馈等于没有反馈。 */
+  async giveFeedback(
+    actor: ActorContext,
+    poolId: string,
+    input: { again: 'yes' | 'maybe' | 'no'; note?: string },
+  ): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.act(actor, (tx) => tx`
+      insert into feedback (pool_id, person_id, again, note)
+      values (${poolId}, ${me.id}, ${input.again}, ${input.note ?? null})
+      on conflict (pool_id, person_id) do update set again = excluded.again, note = excluded.note
+    `)
+  }
+
+  /**
+   * 用回流物生成共同海报。
+   *
+   * 多图融合保持主体一致性 —— 这让海报是「我们那次」的产物，
+   * 而不是一张任何人都能生成的模板图。
+   */
+  async makePoster(poolId: string): Promise<{ id: string }> {
+    return this.asSystem(async (tx) => {
+      const [pool] = await tx<{ title: string | null }[]>`
+        select title from pool where id = ${poolId}
+      `
+      const photos = await tx<{ uri: string }[]>`
+        select uri from artifact where pool_id = ${poolId} and kind = 'photo' limit 6
+      `
+      if (photos.length === 0) throw new Error('还没有返图，无法生成海报')
+
+      const image = await this.deps.model.image({
+        task: 'recap.poster',
+        prompt: `把这些照片融成一张纪念海报，主题：${pool?.title ?? '我们的一次出行'}。保持照片里人物与场景的一致性，风格干净，留白处可写标题。`,
+        referenceImages: photos.map((p) => p.uri),
+      })
+
+      const uri = `data:${image.contentType};base64,${Buffer.from(image.bytes).toString('base64')}`
+      const [row] = await tx<{ id: string }[]>`
+        insert into artifact (pool_id, author_id, kind, uri, caption)
+        values (${poolId}, null, 'poster', ${uri}, '共同海报')
+        returning id
+      `
+      if (!row) throw new Error('海报写入失败')
+      return row
+    })
+  }
+
+  /** 收尾：写 recap、生成 next_hook、转休眠。池塘不销毁，它带着钩子睡着。 */
+  async sealPool(poolId: string): Promise<{ summary: string; nextHook: string }> {
+    return sealPool({ sql: this.deps.sql, model: this.deps.model }, poolId)
+  }
+
+  /** 到期待唤醒的池塘。 */
+  async poolsDueForWake(limit = 100): Promise<string[]> {
+    return this.asSystem((tx) => poolsDueForWake(tx, limit))
+  }
+
+  /** 取某个休眠池塘的唤醒卡。到期才有，否则 null。 */
+  async wakeCardFor(poolId: string): Promise<AgentCard | null> {
+    return this.asSystem((tx) => makeWakeCard(tx, poolId))
+  }
+
+  /**
+   * 接受唤醒 —— 再次成行。
+   *
+   * 派生一个新池塘，`parent_pool` 指回原池，原池保持休眠。
+   * 同一条链上连续成行三次会触发 crew 提议：社群不是用户建的群，
+   * 是系统从重复的 activity 里长出来的。
+   */
+  async acceptWake(actor: ActorContext, poolId: string): Promise<{ poolId: string; crewSuggested: boolean }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+
+    return this.asSystem(async (tx) => {
+      const [origin] = await tx<{ nextHook: string | null; campusId: string; domain: string | null }[]>`
+        select next_hook as "nextHook", campus_id as "campusId", domain
+        from pool where id = ${poolId} and state = 'dormant'
+      `
+      if (!origin?.nextHook) throw new Error('这个池塘没有待唤醒的约定')
+
+      const [fresh] = await tx<{ id: string }[]>`
+        insert into pool (kind, state, campus_id, domain, title, parent_pool)
+        values ('activity', 'forming', ${origin.campusId}, ${origin.domain}, ${origin.nextHook}, ${poolId})
+        returning id
+      `
+      if (!fresh) throw new Error('新池塘创建失败')
+
+      // 原池的在册成员直接带过来，但都是 invited —— 确认即过滤，
+      // 上次一起玩过不代表这次一定有空
+      await tx`
+        insert into membership (pool_id, person_id, role, state, invited_at)
+        select ${fresh.id}, m.person_id, m.role,
+               case when m.person_id = ${me.id} then 'joined'::membership_state else 'invited'::membership_state end,
+               case when m.person_id = ${me.id} then null else now() end
+        from membership m where m.pool_id = ${poolId} and m.state = 'joined'
+      `
+      await tx`
+        insert into episode (pool_id, kind, summary, actor_id)
+        values (${fresh.id}, 'woken', ${origin.nextHook}, ${me.id})
+      `
+
+      // 同一条 parent 链上成行过几次
+      const chain = await tx<{ n: number }[]>`
+        with recursive chain as (
+          select id, parent_pool from pool where id = ${fresh.id}
+          union all
+          select p.id, p.parent_pool from pool p join chain c on p.id = c.parent_pool
+        )
+        select count(*)::int as n from chain
+      `
+      return { poolId: fresh.id, crewSuggested: (chain[0]?.n ?? 0) >= 3 }
+    })
   }
 
   /** 连接健康检查。用于启动自检与测试 harness。 */
