@@ -1,113 +1,142 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   设计令牌：池塘的调色板
+   设计令牌：种子 — 植物 — 森林
    --------------------------------------------------------------------------
-   意象来自水体本身：浅色是「水面」——被天光照亮的浅滩；深色是「潭底」——
-   光线穿不透的深处。主色不是常见的暖米色纸感，而是偏冷的芦苇灰绿，
-   避免与"AI 落地页标配"的暖米色+衬线+赭石 accent 撞脸。
-   全站只留一处高饱和色："印泥朱红"（seal），只用在最关键的动作和红线声明上——
-   像编辑在手稿边缘落下的一笔朱批，而不是装饰。
+   这套调色板不是「主题色 + 几个辅助色」，而是三个各自有语义的角色。
+   之所以要把语义写死，是因为本产品的核心信息就是状态：
+   一件事是刚种下、正在长、开过花、还是睡着了 —— 用户应该扫一眼颜色就知道，
+   不必逐个读标签。颜色在这里承担信息，不承担装饰。
+
+     纸与墨（surface / ink / border）—— 结构。中性、低彩度，是土也是纸。
+       它占据画面 90% 以上。全站的「安静」由它保证，剩下两个角色才敢用力。
+
+     叶（accent，绿）—— **活着**。只出现在正在生长的东西上：
+       进行中的行动、植物图形的活体部分、通往一个活着的东西的链接。
+       它是状态，不是号召。绿色按钮在这套系统里只用于「次要动作」，
+       因为主动作属于下面那个角色。
+
+     朱（seal，印泥红）—— **真人落手的地方**。
+       ADR-0002 说「确认即过滤」：准入由人完成，不由系统算。
+       那个动作在中文语境里的形象就是盖章。所以每一处需要真人签字的按钮
+       （我来说 / 确认加入 / 种下）都是朱色；而植物开的花也是朱色 ——
+       花是这些签字累积出来的结果。同一个颜色说同一件事：这里有人真的动了手。
+
+     土（soil）—— 地平线以下。种子、土线、休眠。
+       它是唯一一个新增的暖色相，让整套色不至于变成一堆绿。用量极小。
+
+   刻意不做的事：不堆叶子图标、不用绿色铺满页面、不做暖米色 + 衬线 + 赭石那套
+   「AI 生成落地页」的标配、不用圆角（方角是标本册与活字印刷的语言）。
 
    三态深浅色规则（不可破坏）：
    1. 完整的浅色调色板只在裸 :root 里定义一次，这是唯一真相源。
    2. prefers-color-scheme:dark 命中、且用户没有显式选择浅色时，
       用 :root:not([data-theme="light"]) 覆盖同一批 token（不新增 token 名）。
    3. 用户显式选了深色（data-theme="dark"，由 ThemeToggle 写入）时，
-      :root[data-theme="dark"] 再覆盖一遍同一批 token——不管系统是什么颜色，
+      :root[data-theme="dark"] 再覆盖一遍同一批 token —— 不管系统是什么颜色，
       显式选择永远优先。
-   任何 token 都不允许只在 media 或 [data-theme] 块里出现——那样会导致
-   "浅色用户从没见过 dark 分支定义、也就没人会发现它其实漏了一个 token"
+   任何 token 都不允许只在 media 或 [data-theme] 块里出现 —— 那样会导致
+   「浅色用户从没见过 dark 分支定义、也就没人会发现它其实漏了一个 token」
    这种经典 bug。三个块里的 token 名集合必须完全一致，只是取值不同。
    ========================================================================== */
 
 :root {
   color-scheme: light;
 
-  /* 表面 */
-  --surface: #eef2ec; /* 水面：偏冷的浅灰绿，不是暖米纸色 */
-  --surface-alt: #e2e8dd; /* 次级表面：卡片、条纹、装饰性色带 */
-  --surface-raised: #f8faf6; /* 浮起的卡片，比水面更亮一点 */
+  /* 纸：偏冷的苔灰，不是暖米色。彩度压到几乎为零，
+     好让后面出现的每一点绿和朱都是有意义的。 */
+  --surface: #e8ebe4;
+  --surface-alt: #dde1d7; /* 次级表面：分区底、表头、静态信息块 */
+  --surface-raised: #f6f8f3; /* 浮起：卡片、输入框所在的那一层 */
 
-  /* 墨色文字 */
-  --ink: #12201a; /* 正文：偏绿的深墨，不是纯黑 */
-  --ink-muted: #47564c; /* 次级文字 */
-  --ink-soft: #5b6b60; /* 说明性文字。原本 #6c7b70 只有 3.94:1，
-    小字号（text-xs/sm）用它排正文不够 WCAG AA 的 4.5:1，调深到 4.99:1 */
+  /* 墨：带一点绿的深色，不是纯黑 —— 纯黑在纸色上会显得脏 */
+  --ink: #161c15;
+  --ink-muted: #444d42;
+  --ink-soft: #586254; /* 小字用它排正文也要过 AA：在 surface 上 5.3:1 */
 
-  /* 边界 */
-  --border: #cad3c2;
-  --border-strong: #9bab93;
+  --border: #c8cdbf;
+  --border-strong: #9aa392;
 
-  /* 池塘绿：唯一的交互色（链接、图标、次要动作） */
-  --accent: #1f6e52;
-  --accent-strong: #175640;
-  --accent-soft: #dbe9df;
-  --accent-ink: #f4fbf6; /* 铺满 accent 底色时用的文字颜色 */
+  /* 叶：真正的叶绿，不是 UI 里那种偏青的「成功绿」 */
+  --accent: #2c6b3d;
+  --accent-strong: #1f5030;
+  --accent-soft: #d6e2d4;
+  --accent-ink: #f3f7ef;
 
-  /* 印泥朱红：唯一的强调色，只用于头等动作与红线声明 */
-  --seal: #a8341f;
-  --seal-strong: #872a19;
-  --seal-soft: #f2ddd3;
-  --seal-ink: #fdf1ea;
+  /* 朱：印泥。真人签字与开花共用它 */
+  --seal: #9e3520;
+  --seal-strong: #7d2917;
+  --seal-soft: #eedcd4;
+  --seal-ink: #fdf3ee;
 
-  --focus: #1f6e52; /* 焦点环固定用 accent，浅深色下都要够亮 */
+  /* 土：地平线以下。种子、土线、休眠 */
+  --soil: #6a5a45;
+  --soil-soft: #dcd5c6;
+
+  --focus: #2c6b3d;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --surface: #0e1613; /* 潭底 */
-    --surface-alt: #16211c;
-    --surface-raised: #182620;
+    /* 深色不是「浅色反转」，是同一片林子入夜：绿更亮、土更暖、纸变成林下的暗 */
+    --surface: #10130f;
+    --surface-alt: #171b15;
+    --surface-raised: #1b201a;
 
-    --ink: #e8eee4;
-    --ink-muted: #a9b6a9;
-    --ink-soft: #77897c;
+    --ink: #e6ebe0;
+    --ink-muted: #a5ad9f;
+    --ink-soft: #7d867a;
 
-    --border: #2b3a31;
-    --border-strong: #3e5347;
+    --border: #2a3126;
+    --border-strong: #414a3c;
 
-    --accent: #57c79a;
-    --accent-strong: #79dbb5;
-    --accent-soft: #16352a;
-    --accent-ink: #06120d;
+    --accent: #6cc07f;
+    --accent-strong: #93d9a4;
+    --accent-soft: #17301c;
+    --accent-ink: #071008;
 
-    --seal: #e2704f;
-    --seal-strong: #ef8a68;
-    --seal-soft: #3a2018;
-    --seal-ink: #180b06;
+    --seal: #e0785a;
+    --seal-strong: #ee9174;
+    --seal-soft: #35190f;
+    --seal-ink: #180a05;
 
-    --focus: #57c79a;
+    --soil: #a08a68;
+    --soil-soft: #241d13;
+
+    --focus: #6cc07f;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --surface: #0e1613;
-  --surface-alt: #16211c;
-  --surface-raised: #182620;
+  --surface: #10130f;
+  --surface-alt: #171b15;
+  --surface-raised: #1b201a;
 
-  --ink: #e8eee4;
-  --ink-muted: #a9b6a9;
-  --ink-soft: #77897c;
+  --ink: #e6ebe0;
+  --ink-muted: #a5ad9f;
+  --ink-soft: #7d867a;
 
-  --border: #2b3a31;
-  --border-strong: #3e5347;
+  --border: #2a3126;
+  --border-strong: #414a3c;
 
-  --accent: #57c79a;
-  --accent-strong: #79dbb5;
-  --accent-soft: #16352a;
-  --accent-ink: #06120d;
+  --accent: #6cc07f;
+  --accent-strong: #93d9a4;
+  --accent-soft: #17301c;
+  --accent-ink: #071008;
 
-  --seal: #e2704f;
-  --seal-strong: #ef8a68;
-  --seal-soft: #3a2018;
-  --seal-ink: #180b06;
+  --seal: #e0785a;
+  --seal-strong: #ee9174;
+  --seal-soft: #35190f;
+  --seal-ink: #180a05;
 
-  --focus: #57c79a;
+  --soil: #a08a68;
+  --soil-soft: #241d13;
+
+  --focus: #6cc07f;
 }
 
 /* --------------------------------------------------------------------------
@@ -138,15 +167,25 @@
   --color-seal-soft: var(--seal-soft);
   --color-seal-ink: var(--seal-ink);
 
+  --color-soil: var(--soil);
+  --color-soil-soft: var(--soil-soft);
+
   --color-focus: var(--focus);
 
   /* 中文编辑排版的经典配对：正文黑体栈 / 标题宋体栈，全部是系统自带字体，
-     不加载任何 webfont——校园场景的手机网络不该为字体花一次首屏加载。 */
+     不加载任何 webfont —— 校园场景的手机网络不该为字体花一次首屏加载。
+
+     第三条 --font-mark 是标本册的语言：编号、刻度、计数、阶段代号。
+     等宽字形让数字对齐成一列，也让「01 / 02」这类章节标记有版式重量 ——
+     这正是不用 emoji 做章节标记的替代方案。 */
   --font-sans:
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system,
     BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-head:
     "Songti SC", "Noto Serif CJK SC", "Noto Serif SC", STSong, SimSun, serif;
+  --font-mark:
+    ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas,
+    "PingFang SC", monospace;
 }
 
 /* ==========================================================================
@@ -167,9 +206,13 @@ body {
   background: var(--surface);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* 中文正文需要比拉丁文更松的行距才不结块；1.75 是长段落的舒适下限。 */
+  line-height: 1.75;
   min-height: 100dvh;
   /* 移动端浏览器场景：任何一处子元素撑宽都不该产生整页横向滚动。 */
   overflow-x: hidden;
+  /* 中日文全角标点两侧的空档收紧一半，不支持的浏览器直接忽略这条。 */
+  text-spacing-trim: trim-start;
 }
 
 h1,
@@ -178,7 +221,9 @@ h3,
 h4 {
   font-family: var(--font-head);
   font-weight: 600;
+  /* 宋体标题字面偏小、笔画细，稍紧的字距和更紧的行距才立得住 */
   letter-spacing: 0.01em;
+  line-height: 1.35;
 }
 
 a {
@@ -190,7 +235,12 @@ a {
   color: var(--ink);
 }
 
-/* 跳转链接：默认藏在视口外，聚焦时移入视口——键盘用户的第一个可达目标。 */
+/* 长链接、handle、next_hook 这类可能没有断点的串，宁可断词也不要撑出横向滚动 */
+.break-anywhere {
+  overflow-wrap: anywhere;
+}
+
+/* 跳转链接：默认藏在视口外，聚焦时移入视口 —— 键盘用户的第一个可达目标。 */
 .skip-link {
   position: fixed;
   top: 0.5rem;
@@ -209,10 +259,28 @@ a {
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
-  border-radius: 2px;
 }
 
-/* 页面载入的入场动效，只用在首屏一次，克制使用。 */
+/* --------------------------------------------------------------------------
+   版式基元
+   -------------------------------------------------------------------------- */
+
+/* 标本册的页边标注：编号、阶段代号、计数。等宽 + 加宽字距 + 全大写。
+   全站的「小标签」只有这一种写法，不允许每处自己发明一套。 */
+.mark {
+  font-family: var(--font-mark);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   动效
+   全站只有两处动画：首屏一次性入场、植物一次性生长。
+   没有循环动画、没有滚动视差 —— 状态指示器不该抢注意力。
+   -------------------------------------------------------------------------- */
+
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -228,8 +296,43 @@ a {
   animation: rise-in 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* 植物出场：茎沿路径「长」出来。用 stroke-dashoffset 而不是 scaleY，
+   因为 scaleY 会把叶片也压扁，看起来像被拉伸的贴图，不像生长。 */
+@keyframes stem-draw {
+  from {
+    stroke-dashoffset: var(--stem-length, 60);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-stem {
+  stroke-dasharray: var(--stem-length, 60);
+  animation: stem-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 叶与花在茎长完之后才淡入，顺序对了才像生长而不像同时出现 */
+@keyframes bloom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-bloom {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bloom-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* prefers-reduced-motion：全局兜底，之后任何组件新增的动效都自动被这条压平，
-   不需要每处动画各自记得加媒体查询。 */
+   不需要每处动画各自记得加媒体查询。注意 stroke-dashoffset 被压到 0 之后
+   植物是完整可见的静态图 —— 减少动效不等于丢失信息。 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

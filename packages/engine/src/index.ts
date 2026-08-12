@@ -7,3 +7,8 @@ export { needsRecapPrompt, makeRecapCard, RECAP_PROMPT_HOURS } from './recap-ser
 export { decideIntervention, FORMING_CARD_CAP, STALL_MINUTES } from './spirit-service'
 export { distillPerson, recomputeRelations, wipeL2 } from './distiller-service'
 export type { IntentScope } from './intent-service'
+export type { PlanDraft, PlanRecord } from './plan-service'
+export type { DueReminder, ReminderKind } from './reminder-service'
+export { reminderText } from './reminder-service'
+export { clarify, missingEssentials, mergeAnswers } from './intent-service'
+export type { Clarification, EssentialSlot } from './intent-service'

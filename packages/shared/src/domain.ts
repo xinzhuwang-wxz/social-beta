@@ -64,6 +64,10 @@ export const PoolState = z.enum([
   'matching',
   'forming',
   'active',
+  // 花苞：计划已被全员确认，等待行动。
+  // 缺了这一档，「计划确定」和「事情办完」在数据上是同一件事，
+  // 于是提醒该在什么时候发、当天状态从什么时候开始，都无从判断。
+  'planned',
   'done',
   'dormant',
 ])
@@ -73,8 +77,10 @@ export type PoolState = z.infer<typeof PoolState>
 export const POOL_TRANSITIONS: Record<PoolState, readonly PoolState[]> = {
   open: ['matching', 'done'],
   matching: ['forming', 'open', 'done'],
-  forming: ['active', 'done'],
-  active: ['done'],
+  forming: ['active', 'planned', 'done'],
+  active: ['planned', 'done'],
+  // 花苞可以退回生长：有人退出、计划有变，都该允许回到讨论
+  planned: ['active', 'done'],
   done: ['dormant'],
   dormant: ['matching'], // 唤醒 → 派生新池塘走 matching
 }

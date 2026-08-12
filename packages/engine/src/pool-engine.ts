@@ -1,6 +1,14 @@
 import { asPerson, toVector, type Sql } from '@pool/db'
 import type { ModelGateway } from '@pool/model'
-import { SILENT, type AgentCard, type Domain, type InterventionDecision, type PoolRole, type Visibility } from '@pool/shared'
+import {
+  SILENT,
+  type AgentCard,
+  type Domain,
+  type InterventionDecision,
+  type PoolRole,
+  type PoolState,
+  type Visibility,
+} from '@pool/shared'
 import {
   listBoard,
   listMyIntents,
@@ -8,6 +16,10 @@ import {
   insertIntent,
   type BoardItem,
   type IntentRecord,
+  clarify,
+  mergeAnswers,
+  type Clarification,
+  type EssentialSlot,
   type IntentScope,
   type PreparedIntent,
 } from './intent-service'
@@ -36,6 +48,20 @@ import {
   recomputeRelations,
   wipeL2,
 } from './distiller-service'
+import {
+  confirmPlan,
+  draftPlan,
+  readPlan,
+  submitPlan,
+  type PlanDraft,
+  type PlanRecord,
+} from './plan-service'
+import {
+  dueReminders,
+  markReminderSent,
+  reminderText,
+  type DueReminder,
+} from './reminder-service'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -168,6 +194,31 @@ export class PoolEngine {
     // 「模型调用别占事务」不是绕过 RLS 的理由。
     const prepared = await prepareIntent({ model: this.deps.model }, rawText)
     return this.act(actor, (tx) => insertIntent(tx, me.id, me.campusId, prepared, opts.scope ?? 'open'))
+  }
+
+  /**
+   * 需求结构化 SOP 的第一步：抽取 + 看缺什么。
+   *
+   * 返回的 questions 最多三条，来自固定模板而非模型生成 ——
+   * 让模型出题会滑向个性化打探（「你体力怎么样？」），
+   * 那既拖慢发布也让人不适。整轮可跳过：
+   * 缺信息的种子匹配质量确实差，但把人问跑了连差的匹配都没有。
+   */
+  async clarifyIntent(actor: ActorContext, rawText: string): Promise<Clarification> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    const prepared = await prepareIntent({ model: this.deps.model }, rawText)
+    return clarify(prepared.extraction)
+  }
+
+  /** 带着答案重新发布。答案并回原文再走一次抽取，不在应用层猜他答的是哪一项。 */
+  async publishClarified(
+    actor: ActorContext,
+    rawText: string,
+    answers: Partial<Record<EssentialSlot, string>>,
+    opts: { scope?: IntentScope } = {},
+  ): Promise<IntentRecord> {
+    return this.publishIntent(actor, mergeAnswers(rawText, answers), opts)
   }
 
   /**
@@ -813,6 +864,200 @@ export class PoolEngine {
     })
   }
 
+  // ==========================================================
+  // 行动确认卡 · 从「有空一起」到「确定一起」
+  // ==========================================================
+
+  /** AI 从聊天里汇总一张草稿。不落库 —— 提交是人的动作。 */
+  async draftPlan(actor: ActorContext, poolId: string): Promise<PlanDraft> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.assertMember(me.id, poolId)
+    return draftPlan({ sql: this.deps.sql, model: this.deps.model }, poolId)
+  }
+
+  /** 提交确认卡。覆盖式提交会作废此前的确认 —— 大家确认的是那一版，不是这一版。 */
+  async submitPlan(
+    actor: ActorContext,
+    poolId: string,
+    input: Parameters<typeof submitPlan>[3],
+  ): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.assertMember(me.id, poolId)
+    await this.asSystem((tx) => submitPlan(tx, poolId, me.id, input))
+  }
+
+  /** 确认计划。全员确认后池塘进入花苞 —— 一个人拍板不算共同承诺。 */
+  async confirmPlan(actor: ActorContext, poolId: string): Promise<{ allConfirmed: boolean }> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.assertMember(me.id, poolId)
+    return this.asSystem((tx) => confirmPlan(tx, poolId, me.id))
+  }
+
+  async plan(actor: ActorContext, poolId: string): Promise<PlanRecord | null> {
+    return this.act(actor, (tx) => readPlan(tx, poolId))
+  }
+
+  // ==========================================================
+  // 邀请回应 · 四个选项
+  // ==========================================================
+
+  /**
+   * 回应一条邀请。
+   *
+   * 四个选项不是礼貌性的装饰：`adjust` 给了「想去但条件不合」一个出口，
+   * `later` 把一次拒绝转化成长期信号。只有「加入」一个选项时，
+   * 所有非加入的意图都塌缩成沉默 —— 而沉默是不可区分的，系统学不到任何东西。
+   */
+  async replyToInvite(
+    actor: ActorContext,
+    poolId: string,
+    response: InviteResponse,
+    note?: string,
+  ): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+
+    await this.asSystem(async (tx) => {
+      const [m] = await tx<{ state: string }[]>`
+        select state from membership where pool_id = ${poolId} and person_id = ${me.id}
+      `
+      if (m?.state !== 'invited') throw new Error('没有待回应的邀请')
+
+      await tx`
+        insert into invite_reply (pool_id, person_id, response, note)
+        values (${poolId}, ${me.id}, ${response}, ${note ?? null})
+        on conflict (pool_id, person_id) do update
+          set response = excluded.response, note = excluded.note
+      `
+
+      if (response === 'join') {
+        await tx`
+          update membership set state = 'joined', joined_at = now()
+          where pool_id = ${poolId} and person_id = ${me.id}
+        `
+        await tx`
+          insert into episode (pool_id, kind, summary, actor_id)
+          values (${poolId}, 'joined', '确认加入', ${me.id})
+        `
+      } else if (response === 'adjust') {
+        // 想去但条件不合：留在邀请态，把诉求带进池塘让大家看到。
+        // 直接判成拒绝会丢掉一个本来可以成的连接。
+        await tx`
+          insert into episode (pool_id, kind, summary, actor_id)
+          values (${poolId}, 'adjust', ${note ?? '想参加，但条件需要调整'}, ${me.id})
+        `
+      } else {
+        // decline / later 都退出这个池塘。
+        // 区别只在 invite_reply 里 —— later 是一条长期信号，decline 不是。
+        await tx`
+          update membership set state = 'left', left_at = now()
+          where pool_id = ${poolId} and person_id = ${me.id}
+        `
+      }
+    })
+  }
+
+  // ==========================================================
+  // 当天状态与提醒
+  // ==========================================================
+
+  /** 轻量状态。首版不做持续定位 —— 定位的隐私代价远高于它带来的协调收益。 */
+  async setDayStatus(
+    actor: ActorContext,
+    poolId: string,
+    status: DayStatus,
+    note?: string,
+  ): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.act(actor, (tx) => tx`
+      insert into participant_status (pool_id, person_id, status, note, updated_at)
+      values (${poolId}, ${me.id}, ${status}, ${note ?? null}, now())
+      on conflict (pool_id, person_id) do update
+        set status = excluded.status, note = excluded.note, updated_at = now()
+    `)
+  }
+
+  /** 到期该发的提醒。定时任务用。 */
+  async dueReminders(limit = 200): Promise<DueReminder[]> {
+    return this.asSystem((tx) => dueReminders(tx, limit))
+  }
+
+  /** 把提醒作为精灵的卡片投进池塘，并记录已发，避免重复打扰。 */
+  async deliverReminder(r: DueReminder): Promise<void> {
+    await this.asSystem(async (tx) => {
+      await tx`
+        insert into episode (pool_id, kind, summary, payload, actor_id)
+        values (${r.poolId}, 'card', ${reminderText(r)},
+                ${tx.json({ kind: 'reminder', reminder: r.kind } as never)}, null)
+      `
+      await markReminderSent(tx, r.poolId, r.kind)
+    })
+  }
+
+  // ==========================================================
+  // 行动房间的状态看板
+  // ==========================================================
+
+  /**
+   * 顶部持续展示的东西：目标、成员、已确认、未确认、进度、下一步。
+   *
+   * 「下一步」刻意由确定性规则算出，不打模型 —— 它每次刷新都要显示，
+   * 让模型来算既贵又会前后不一致，而用户会立刻发现它在瞎说。
+   */
+  async poolBoard(actor: ActorContext, poolId: string): Promise<PoolBoard> {
+    return this.act(actor, async (tx) => {
+      const [pool] = await tx<{ title: string | null; state: string; nextHook: string | null }[]>`
+        select title, state, next_hook as "nextHook" from pool where id = ${poolId}
+      `
+      if (!pool) throw new Error('池塘不存在')
+
+      const members = await tx<{ personId: string; displayName: string; role: string; state: string }[]>`
+        select m.person_id as "personId", p.display_name as "displayName", m.role::text, m.state::text
+        from membership m join person p on p.id = m.person_id
+        where m.pool_id = ${poolId} and m.state in ('invited','joined')
+        order by m.joined_at asc nulls last
+      `
+      const plan = await readPlan(tx, poolId)
+      const statuses = await tx<{ personId: string; status: string }[]>`
+        select person_id as "personId", status::text from participant_status where pool_id = ${poolId}
+      `
+      const artifacts = await tx<{ n: number }[]>`
+        select count(*)::int as n from artifact where pool_id = ${poolId}
+      `
+
+      const settled: string[] = []
+      const open: string[] = []
+      if (plan) {
+        settled.push(`时间：${plan.startsAt.toLocaleString('zh-CN')}`, `集合：${plan.meetAt}`)
+        if (plan.route) settled.push(`路线：${plan.route}`)
+        if (plan.pendingBy.length > 0) {
+          open.push(`还差 ${plan.pendingBy.map((p) => p.displayName).join('、')} 确认计划`)
+        }
+      } else {
+        open.push('时间、地点还没定下来')
+      }
+      const invited = members.filter((m) => m.state === 'invited')
+      if (invited.length > 0) open.push(`${invited.map((m) => m.displayName).join('、')} 还没回应邀请`)
+
+      return {
+        title: pool.title,
+        state: pool.state as PoolState,
+        members,
+        settled,
+        open,
+        plan,
+        statuses,
+        artifactCount: artifacts[0]?.n ?? 0,
+        nextHook: pool.nextHook,
+        nextStep: nextStepFor(pool.state as PoolState, plan, invited.length),
+      }
+    })
+  }
+
   /** 连接健康检查。用于启动自检与测试 harness。 */
   async ping(): Promise<{ db: boolean; model: ModelGateway['info'] }> {
     const rows = await this.deps.sql<{ ok: number }[]>`select 1 as ok`
@@ -875,4 +1120,45 @@ export interface FacetView {
   updatedAt: Date
   /** 这条画像的依据。用户问「你凭什么这么说我」，答案在这里。 */
   evidence: { poolId: string; title: string | null }[]
+}
+
+/** 邀请的四种回应。见 migration 0012 的注释：后三个不是礼貌性的装饰。 */
+export type InviteResponse = 'join' | 'adjust' | 'decline' | 'later'
+
+/** 当天状态。首版不做持续定位。 */
+export type DayStatus = 'ready' | 'departed' | 'arrived' | 'changed'
+
+export interface PoolBoard {
+  title: string | null
+  state: PoolState
+  members: { personId: string; displayName: string; role: string; state: string }[]
+  /** 已经定下来的事 */
+  settled: string[]
+  /** 还没定的事 */
+  open: string[]
+  plan: PlanRecord | null
+  statuses: { personId: string; status: string }[]
+  artifactCount: number
+  nextHook: string | null
+  /** 下一步该干什么。确定性规则算出，不打模型 */
+  nextStep: string
+}
+
+/**
+ * 下一步提示。
+ *
+ * 刻意用确定性规则而非模型：它每次刷新都要显示，让模型来算既贵又会前后不一致，
+ * 而「上一秒说该定时间、这一秒说该传照片」这种不一致用户会立刻发现，
+ * 且会因此不再相信页面上任何一句提示。
+ */
+function nextStepFor(state: PoolState, plan: PlanRecord | null, invitedCount: number): string {
+  if (state === 'dormant') return '这件事已经结束了。想再约一次的话，点上面那句约定。'
+  if (state === 'done') return '传张返图，或者写一句这次的感受。'
+  if (state === 'planned') return '计划定了，等着出发。当天记得点一下自己的状态。'
+  if (invitedCount > 0) return '还有人没回应邀请，先等等他们。'
+  if (!plan) return '把时间和地点聊定，然后提交一张行动确认卡。'
+  if (plan.pendingBy.length > 0) {
+    return `计划已经拟好了，还差 ${plan.pendingBy.map((p) => p.displayName).join('、')} 确认。`
+  }
+  return '大家都确认了，等着出发。'
 }
