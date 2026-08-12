@@ -239,8 +239,8 @@ export class PoolEngine {
     intentId: string,
   ): Promise<Candidate[]> {
     return this.asSystem(async (tx) => {
-      const rows = await tx<{ id: string; rawText: string; personId: string }[]>`
-        select id, raw_text as "rawText", person_id as "personId"
+      const rows = await tx<{ id: string; rawText: string; personId: string; domain: string }[]>`
+        select id, raw_text as "rawText", person_id as "personId", domain
         from intent where id = ${intentId}
       `
       const intent = rows[0]
@@ -255,7 +255,7 @@ export class PoolEngine {
       return findCandidates(
         { sql: tx, model: this.deps.model },
         { personId: me.id, campusId: me.campusId, poolCount },
-        { id: intent.id, rawText: intent.rawText },
+        { id: intent.id, rawText: intent.rawText, domain: intent.domain },
       )
     })
   }
@@ -339,11 +339,20 @@ export class PoolEngine {
 
     return this.asSystem(async (tx) => {
       const [r] = await tx<
-        { seekerId: string; candidateId: string; proposal: unknown; takenOverAt: Date | null }[]
+        {
+          seekerId: string
+          candidateId: string
+          proposal: unknown
+          takenOverAt: Date | null
+          domain: string | null
+        }[]
       >`
-        select seeker_id as "seekerId", candidate_id as "candidateId",
-               proposal, taken_over_at as "takenOverAt"
-        from rehearsal where id = ${input.rehearsalId}
+        select rh.seeker_id as "seekerId", rh.candidate_id as "candidateId",
+               rh.proposal, rh.taken_over_at as "takenOverAt",
+               i.domain
+        from rehearsal rh
+        left join intent i on i.id = rh.seeker_intent
+        where rh.id = ${input.rehearsalId}
       `
       if (!r) throw new Error('预演记录不存在')
       // 只有预演的发起者本人能接管。缺了这一条，任何人都能拿别人的预演开池塘。
@@ -354,6 +363,7 @@ export class PoolEngine {
         seekerId: me.id,
         candidateId: r.candidateId,
         campusId: me.campusId,
+        domain: r.domain ?? 'other',
         rehearsalId: input.rehearsalId,
         proposal: r.proposal as Parameters<typeof takeOver>[1]['proposal'],
         opening,

@@ -17,6 +17,15 @@ export interface TakeoverInput {
   seekerId: string
   candidateId: string
   campusId: string
+  /**
+   * 池塘所属领域，来自发起方的意图。
+   *
+   * 这个字段一度缺失，后果比看上去严重：所有池塘 domain 为 null，
+   * 于是所有切面都落进 'other'，「facet 按 domain 分片」这个设计
+   * 在数据上从未生效 —— 匹配时按领域取切面永远取不到。
+   * 模拟里 894 个池塘全是 null 才让它暴露出来。
+   */
+  domain: string
   rehearsalId: string
   proposal: ProposalCard
   /** 真人最终决定发出去的第一句话。可能等于草稿，也可能被改过或完全重写。 */
@@ -37,9 +46,9 @@ export interface TakeoverResult {
 export async function takeOver(sql: Sql, input: TakeoverInput): Promise<TakeoverResult> {
   return sql.begin(async (tx) => {
     const [pool] = await tx<{ id: string }[]>`
-      insert into pool (kind, state, campus_id, title, brief)
+      insert into pool (kind, state, campus_id, domain, title, brief)
       values (
-        'activity', 'forming', ${input.campusId},
+        'activity', 'forming', ${input.campusId}, ${input.domain},
         ${input.proposal.actionProposal.what},
         ${input.proposal.actionProposal.rationale}
       )

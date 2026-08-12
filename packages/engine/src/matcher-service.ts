@@ -63,6 +63,23 @@ interface RecalledIntent {
   similarity: number
   replyRate: number | null
   exposureToday: number
+  /** 对方在该领域的切面与我的相似度。没有切面时为 null —— 不是 0，两者含义不同 */
+  facetSimilarity: number | null
+  /** 对方在该领域承担过的角色 */
+  roles: string[]
+  /** 二度关系：我和他有几个共同的池塘伙伴 */
+  mutualPartners: number
+  /** 我们直接共过几个池塘 */
+  sharedPools: number
+}
+
+/** 我在该领域承担过的角色，用于算互补性 */
+interface SeekerProfile {
+  personId: string
+  campusId: string
+  poolCount: number
+  facetEmbedding: number[] | null
+  roles: string[]
 }
 
 export interface Candidate {
@@ -90,10 +107,14 @@ export interface Candidate {
  */
 async function recall(
   sql: Sql,
-  seekerId: string,
-  campusId: string,
+  seeker: SeekerProfile,
+  domain: string,
   embedding: readonly number[],
 ): Promise<RecalledIntent[]> {
+  const seekerId = seeker.personId
+  const campusId = seeker.campusId
+  const facetVec = seeker.facetEmbedding ? toVector(seeker.facetEmbedding) : null
+
   return sql<RecalledIntent[]>`
     select i.id  as "intentId",
            i.person_id as "personId",
@@ -102,7 +123,18 @@ async function recall(
            i.domain,
            1 - (i.embedding <=> ${toVector(embedding)}::vector) as similarity,
            r.reply_rate as "replyRate",
-           coalesce(e.n, 0)::int as "exposureToday"
+           coalesce(e.n, 0)::int as "exposureToday",
+           -- 长期取向相似度：拿我在该领域的切面向量比对方在同领域的切面向量。
+           -- 双方任一没有切面就是 null —— 「不知道」和「不像」是两回事，
+           -- 用 0 表示会让新用户被系统性压低。
+           ${facetVec ? sql`(select 1 - (f.embedding <=> ${facetVec}::vector)
+                              from facet f
+                              where f.person_id = i.person_id and f.domain = ${domain}
+                                and f.embedding is not null)` : sql`null::float8`}
+             as "facetSimilarity",
+           coalesce(fr.roles, '{}') as roles,
+           coalesce(mp.n, 0)::int as "mutualPartners",
+           coalesce(sp.n, 0)::int as "sharedPools"
     from intent i
     join person p on p.id = i.person_id
     left join responsiveness r on r.person_id = i.person_id
@@ -110,6 +142,30 @@ async function recall(
       select count(*) as n from exposure x
       where x.shown_person = i.person_id and x.created_at > now() - interval '1 day'
     ) e on true
+    -- 他在该领域承担过的角色，用于算互补性
+    left join lateral (
+      select array_agg(distinct m.role::text) as roles
+      from membership m join pool p2 on p2.id = m.pool_id
+      where m.person_id = i.person_id and m.state = 'joined'
+        and coalesce(p2.domain, 'other') = ${domain}
+    ) fr on true
+    -- 二度关系：我们有几个共同的池塘伙伴
+    left join lateral (
+      select count(distinct mine.person_id) as n
+      from membership a
+      join membership mine on mine.pool_id = a.pool_id and mine.person_id <> a.person_id
+      join membership theirs on theirs.person_id = mine.person_id
+      join membership b on b.pool_id = theirs.pool_id and b.person_id = i.person_id
+      where a.person_id = ${seekerId}
+        and mine.person_id <> ${seekerId} and mine.person_id <> i.person_id
+    ) mp on true
+    -- 直接共过的池塘数
+    left join lateral (
+      select count(*) as n from membership x
+      join membership y on y.pool_id = x.pool_id
+      where x.person_id = ${seekerId} and y.person_id = i.person_id
+        and x.state = 'joined' and y.state = 'joined'
+    ) sp on true
     where i.campus_id = ${campusId}
       and i.person_id <> ${seekerId}
       and i.pool_id is null
@@ -132,21 +188,72 @@ async function recall(
  * 没有历史数据的人给 0.5 的中性先验 —— 给 0 会让新用户永远排不上，
  * 而新用户恰恰是最需要被看见的那批。
  */
-function score(row: RecalledIntent, w: Weights): Candidate['score'] {
-  const intent = row.similarity * w.intent
-  const responsiveness = (row.replyRate ?? 0.5) * w.responsiveness
+/**
+ * 角色互补性。
+ *
+ * 爬山队不需要五个都想带路的人。纯 embedding 相似度做不到这件事 ——
+ * 它只会让「最像我的人」排最前，而最像我的人往往正是最不需要的那个。
+ *
+ * 算法很简单：他承担过、而我没承担过的角色占比。
+ * 双方都没有角色历史时返回 null 而非 0 —— 「不知道」不该被当作「不互补」。
+ */
+function complementarity(mine: readonly string[], theirs: readonly string[]): number | null {
+  if (mine.length === 0 || theirs.length === 0) return null
+  const missing = theirs.filter((r) => !mine.includes(r))
+  return missing.length / theirs.length
+}
+
+/**
+ * 社交邻近度：直接共池 + 二度关系。
+ *
+ * 直接共过池塘权重更高（已经验证过合得来），二度关系是弱信号。
+ * 两者都做对数压缩：从 0 个共同伙伴到 1 个是质变，从 10 个到 11 个不是。
+ */
+function socialProximity(sharedPools: number, mutualPartners: number): number | null {
+  if (sharedPools === 0 && mutualPartners === 0) return null
+  return Math.min(1, 0.6 * Math.log1p(sharedPools) + 0.4 * Math.log1p(mutualPartners) / Math.log(4))
+}
+
+/**
+ * 精排打分。
+ *
+ * ## 缺失信号的处理
+ *
+ * 每个信号缺失时返回 null，而它的权重会被**按比例重分配给有值的信号**，
+ * 而不是当成 0 参与加权。
+ *
+ * 这个区别很要紧：一个刚注册的人没有切面、没有社交关系、没有角色历史。
+ * 若把这些当 0，他的总分会被系统性压低，于是**新用户永远排在老用户后面** ——
+ * 而新用户恰恰是最需要被看见的那批。归一化之后，他按自己有的信号公平参与排序。
+ */
+function score(row: RecalledIntent, seeker: SeekerProfile, w: Weights): Candidate['score'] {
+  const signals: [keyof Weights, number | null][] = [
+    ['intent', row.similarity],
+    ['facet', row.facetSimilarity],
+    ['complementarity', complementarity(seeker.roles, row.roles)],
+    ['social', socialProximity(row.sharedPools, row.mutualPartners)],
+    // 没有历史的人给 0.5 中性先验而非 0：没数据不等于不回消息，
+    // 给 0 会让新用户永远排不上，而他恰恰最需要被看见
+    ['responsiveness', row.replyRate ?? 0.5],
+  ]
+
+  const available = signals.filter(([k, v]) => v !== null && w[k] > 0)
+  const availableWeight = available.reduce((s, [k]) => s + w[k], 0)
+  // 权重归一化：缺失信号的权重按比例分给有值的，而不是白白丢掉
+  const norm = availableWeight > 0 ? 1 / availableWeight : 0
+
+  const parts = Object.fromEntries(
+    (Object.keys(w) as (keyof Weights)[]).map((k) => {
+      const v = signals.find(([key]) => key === k)?.[1]
+      return [k, v === null || v === undefined || w[k] === 0 ? 0 : v * w[k] * norm]
+    }),
+  ) as Record<keyof Weights, number>
+
   // 曝光饱和惩罚：接近上限时快速衰减，超过上限直接出局（在调用方过滤）
   const penalty = Math.min(row.exposureToday / DAILY_EXPOSURE_CAP, 1) * 0.3
+  const total = Object.values(parts).reduce((s, v) => s + v, 0) - penalty
 
-  return {
-    total: intent + responsiveness - penalty,
-    intent,
-    facet: 0,
-    complementarity: 0,
-    social: 0,
-    responsiveness,
-    penalty,
-  }
+  return { total, ...parts, penalty }
 }
 
 /**
@@ -223,17 +330,36 @@ async function finalRank(
 export async function findCandidates(
   deps: MatchDeps,
   seeker: { personId: string; campusId: string; poolCount: number },
-  intent: { id: string; rawText: string },
+  intent: { id: string; rawText: string; domain: string },
 ): Promise<Candidate[]> {
   const [embedding] = await deps.model.embed([intent.rawText])
   if (!embedding) throw new Error('embedding 生成失败')
 
-  const recalled = await recall(deps.sql, seeker.personId, seeker.campusId, embedding)
+  // 我在这个领域的长期表示：切面向量 + 承担过的角色。
+  // 这两样都是从我完成过的事件里长出来的 —— 我从没填过任何资料。
+  const [mine] = await deps.sql<{ embedding: string | null; roles: string[] }[]>`
+    select f.embedding::text as embedding,
+           coalesce((select array_agg(distinct m.role::text)
+                     from membership m join pool p on p.id = m.pool_id
+                     where m.person_id = ${seeker.personId} and m.state = 'joined'
+                       and coalesce(p.domain, 'other') = ${intent.domain}), '{}') as roles
+    from (select ${seeker.personId}::uuid as pid) s
+    left join facet f on f.person_id = s.pid and f.domain = ${intent.domain}
+  `
+  const profile: SeekerProfile = {
+    personId: seeker.personId,
+    campusId: seeker.campusId,
+    poolCount: seeker.poolCount,
+    facetEmbedding: mine?.embedding ? JSON.parse(mine.embedding) : null,
+    roles: mine?.roles ?? [],
+  }
+
+  const recalled = await recall(deps.sql, profile, intent.domain, embedding)
   const weights = WEIGHTS[stageFor(seeker.poolCount)]
 
   const shortlist = recalled
     .filter((r) => r.exposureToday < DAILY_EXPOSURE_CAP)
-    .map((r) => ({ ...r, score: score(r, weights) }))
+    .map((r) => ({ ...r, score: score(r, profile, weights) }))
     .sort((a, b) => b.score.total - a.score.total)
     .slice(0, RERANK_LIMIT)
 
