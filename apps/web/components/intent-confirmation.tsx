@@ -33,7 +33,7 @@ export function IntentConfirmation({ intent, action }: IntentConfirmationProps) 
   const errorMessage = state.status === 'error' ? state.message : null
 
   return (
-    <div className="border border-accent/40 bg-accent-soft p-4 sm:p-5">
+    <div className="border-l-2 border-accent bg-accent-soft px-4 py-4 sm:px-5">
       {/* key=当前记录 id：一旦重新发布产生新记录，整块编辑区连同内部的
           useState 一起重新挂载，天然拿到干净的初始值——不需要额外写
           effect 去手动同步「新数据进来了，把输入框也重置一下」。 */}
@@ -93,6 +93,7 @@ function ConfirmationBody({
 
   return (
     <div className="flex flex-col gap-3">
+      <p className="mark text-accent-strong">种下了 · 它还在土里</p>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="text-sm leading-relaxed text-ink">
           <span className="text-ink-soft">我理解成了：</span>
@@ -112,7 +113,7 @@ function ConfirmationBody({
       )}
 
       {editing && (
-        <div className="flex flex-col gap-3 border-t border-accent/30 pt-3">
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
           <fieldset className="flex flex-col gap-1.5">
             <legend className="text-xs text-ink-soft">领域</legend>
             <div className="flex flex-wrap gap-1.5">

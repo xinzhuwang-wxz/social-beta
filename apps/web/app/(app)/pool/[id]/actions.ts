@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import type { DayStatus, PoolEngine } from '@pool/engine'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
 
@@ -177,4 +178,117 @@ export async function confirmJoinAction(poolId: string): Promise<void> {
     failWith(poolId, err)
   }
   redirect(poolPath(poolId))
+}
+
+// ==========================================================
+// 行动确认卡：从「有空一起」到「确定一起」
+// ==========================================================
+
+export type PlanDraft = Awaited<ReturnType<PoolEngine['draftPlan']>>
+
+export type DraftState =
+  | { status: 'idle' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; draft: PlanDraft }
+
+/**
+ * 让 AI 从聊天记录里汇总一版草稿。
+ *
+ * 只汇总、不落库、不改状态 —— 引擎侧就是这么设计的，这里也不越权：
+ * 拿到草稿之后必须由真人在表单里改、由真人按提交。AI 直接生成并生效，
+ * 等于替一群人做了共同承诺，那是红线。
+ *
+ * 按需触发（点按钮才跑），不挂在渲染路径上：它要打一次模型，
+ * 挂在 GET 上意味着刷新、返回、RSC 重渲染都会重花钱。
+ */
+export async function draftPlanAction(
+  _prevState: DraftState,
+  formData: FormData,
+): Promise<DraftState> {
+  const actor = await requireActor()
+  const poolId = String(formData.get('poolId') ?? '')
+  try {
+    return { status: 'ready', draft: await getEngine().draftPlan(actor, poolId) }
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : '汇总不出来，先在群里多聊两句',
+    }
+  }
+}
+
+export type SubmitPlanState =
+  | { status: 'idle' }
+  | { status: 'error'; message: string }
+  | { status: 'saved'; at: number }
+
+/**
+ * 提交确认卡。
+ *
+ * 覆盖式：改一版就作废之前所有人的确认（引擎保证）——
+ * 大家确认的是那一版，不是这一版。这条语义必须在 UI 上说出来，
+ * 否则改完计划的人会以为别人的确认还算数。
+ */
+export async function submitPlanAction(
+  poolId: string,
+  _prevState: SubmitPlanState,
+  formData: FormData,
+): Promise<SubmitPlanState> {
+  const actor = await requireActor()
+
+  const title = String(formData.get('title') ?? '').trim()
+  const startsAt = String(formData.get('startsAt') ?? '').trim()
+  const meetAt = String(formData.get('meetAt') ?? '').trim()
+  if (!title) return { status: 'error', message: '给这件事起个名字' }
+  if (!startsAt) return { status: 'error', message: '定个具体时间——含糊就等于没确认' }
+  if (!meetAt) return { status: 'error', message: '定个集合地点，具体到能导航' }
+
+  // 任务行：what[] 与 ownerId[] 一一对应，空的 what 直接丢掉
+  const whats = formData.getAll('taskWhat').map((v) => String(v).trim())
+  const owners = formData.getAll('taskOwner').map((v) => String(v))
+  const tasks = whats
+    .map((what, i) => ({ what, ownerId: owners[i] || undefined }))
+    .filter((t) => t.what.length > 0)
+
+  try {
+    await getEngine().submitPlan(actor, poolId, {
+      title,
+      startsAt,
+      meetAt,
+      route: String(formData.get('route') ?? '').trim() || undefined,
+      bring: String(formData.get('bring') ?? '')
+        .split(/[,，、\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+      budget: String(formData.get('budget') ?? '').trim() || undefined,
+      changePolicy: String(formData.get('changePolicy') ?? '').trim() || undefined,
+      tasks,
+    })
+  } catch (err) {
+    return { status: 'error', message: err instanceof Error ? err.message : '提交失败，再试一次' }
+  }
+  revalidatePath(poolPath(poolId))
+  return { status: 'saved', at: Date.now() }
+}
+
+/** 确认这一版计划。全员确认后池塘才进花苞 —— 一个人拍板不算共同承诺。 */
+export async function confirmPlanAction(poolId: string): Promise<void> {
+  const actor = await requireActor()
+  try {
+    await getEngine().confirmPlan(actor, poolId)
+  } catch (err) {
+    failWith(poolId, err)
+  }
+  revalidatePath(poolPath(poolId))
+}
+
+/** 当天状态。首版不做定位 —— 自己点一下就够，不值得为它要一次定位权限。 */
+export async function setDayStatusAction(poolId: string, status: DayStatus): Promise<void> {
+  const actor = await requireActor()
+  try {
+    await getEngine().setDayStatus(actor, poolId, status)
+  } catch (err) {
+    failWith(poolId, err)
+  }
+  revalidatePath(poolPath(poolId))
 }

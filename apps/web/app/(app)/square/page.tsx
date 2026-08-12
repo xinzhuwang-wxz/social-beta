@@ -3,16 +3,18 @@ import { redirect } from 'next/navigation'
 import { DOMAINS, DOMAIN_LABEL, Domain } from '@pool/shared'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
+import { ColorField } from '@/components/color-field'
+import { PageShell } from '@/components/page-header'
 import { IntentPublishForm } from '@/components/intent-publish-form'
 import { IntentBoard } from '@/components/intent-board'
-import { publishIntentAction } from './actions'
+import { finishPublishAction, publishIntentAction, startPublishAction } from './actions'
 
 interface SquarePageProps {
   searchParams: Promise<{ domain?: string }>
 }
 
 /**
- * 发意图 + 意图广场（S2 #4）。
+ * 发种子 + 种子广场（S2 #4）。
  *
  * 结构约束沿用 S1 定死的规矩：这个 Server Component 只做
  * 「取 actor → 调 PoolEngine → 渲染」。真正的业务判断——槽位怎么抽、
@@ -32,36 +34,43 @@ export default async function SquarePage({ searchParams }: SquarePageProps) {
   const board = await engine.board(actor, { domain })
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-10 px-5 py-12 sm:px-8">
-      <header>
-        <p className="text-sm font-medium text-accent">发一句，进广场</p>
-        <h1 className="mt-2 font-head text-2xl font-semibold text-ink sm:text-3xl">你想干什么</h1>
-        <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-          怎么说话平时就怎么说，不用挑分类、不用选标签——抽错了发布之后还能改。
+    <div className="flex flex-col">
+      <ColorField eyebrow="种一颗" title="你想干什么" stage="seed">
+        <p className="max-w-xl text-sm leading-relaxed opacity-90">
+          一颗种子就是一个还没发生的行动愿望。怎么说话平时就怎么说——不用挑分类、不用选标签，抽错了当场就能改。
         </p>
-      </header>
+      </ColorField>
 
-      <IntentPublishForm action={publishIntentAction} />
+      <PageShell>
+        <IntentPublishForm
+          startAction={startPublishAction}
+          finishAction={finishPublishAction}
+          republishAction={publishIntentAction}
+        />
 
-      <section className="flex flex-col gap-4 border-t border-border pt-8">
-        <div className="flex items-baseline justify-between gap-4">
-          <h2 className="font-head text-lg font-semibold text-ink">
-            {person.campusId} · 意图广场
-          </h2>
-          <span className="text-xs text-ink-soft">{board.length} 条</span>
-        </div>
+        <section className="flex flex-col gap-4 border-t border-border pt-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 className="font-head text-lg font-semibold text-ink">
+              {person.campusId} · 种子广场
+            </h2>
+            <span className="mark text-ink-soft">{board.length} 颗</span>
+          </div>
+          <p className="text-sm leading-relaxed text-ink-soft">
+            别人埋下的、还没长起来的愿望。冷启动期先让人自己翻，而不是给一个空推荐位假装智能。
+          </p>
 
-        <DomainFilter active={domain} />
+          <DomainFilter active={domain} />
 
-        <IntentBoard items={board} viewerPersonId={person.id} />
-      </section>
-    </main>
+          <IntentBoard items={board} viewerPersonId={person.id} />
+        </section>
+      </PageShell>
+    </div>
   )
 }
 
 function DomainFilter({ active }: { active?: Domain }) {
   return (
-    <nav aria-label="按领域筛选" className="flex flex-wrap gap-2 text-xs">
+    <nav aria-label="按领域筛选" className="flex flex-wrap gap-1.5">
       <Link href="/square" className={chipClass(!active)}>
         全部
       </Link>
@@ -75,9 +84,9 @@ function DomainFilter({ active }: { active?: Domain }) {
 }
 
 function chipClass(isActive: boolean): string {
-  return `border px-3 py-1.5 transition-colors ${
+  return `border px-2.5 py-1 text-xs transition-colors ${
     isActive
-      ? 'border-accent bg-accent-soft text-accent-strong'
+      ? 'border-accent bg-accent text-accent-ink'
       : 'border-border text-ink-muted hover:border-border-strong hover:text-ink'
   }`
 }

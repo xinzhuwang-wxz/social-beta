@@ -11,7 +11,7 @@ import { NavIndex } from "./nav-index";
  * 索引条不做汉堡菜单：校园用户在手机浏览器里用，藏起来的菜单直接违反
  * 「主要动作三次点击内可达」。窄屏下换行，不做横向滚动。
  */
-export function SiteHeader() {
+export function SiteHeader({ authed = false }: { authed?: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/92 backdrop-blur">
       <a
@@ -34,7 +34,7 @@ export function SiteHeader() {
         <ThemeToggle />
       </div>
 
-      <NavIndex />
+      <NavIndex authed={authed} />
     </header>
   );
 }

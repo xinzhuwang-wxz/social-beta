@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PondMark } from "./pond-mark";
 import { PRIMARY_NAV } from "./nav-links";
 
-export function SiteFooter() {
+export function SiteFooter({ authed = false }: { authed?: boolean }) {
   return (
     <footer className="mt-16 border-t border-border">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-5 py-10 sm:flex-row sm:items-start sm:justify-between sm:px-8">
@@ -31,12 +31,14 @@ export function SiteFooter() {
               {item.label}
             </Link>
           ))}
-          <Link
-            href="/auth/login"
-            className="text-ink-soft transition-colors hover:text-accent"
-          >
-            登录
-          </Link>
+          {!authed && (
+            <Link
+              href="/auth/login"
+              className="text-ink-soft transition-colors hover:text-accent"
+            >
+              登录
+            </Link>
+          )}
         </nav>
       </div>
       <div className="mx-auto w-full max-w-6xl px-5 pb-8 sm:px-8">

@@ -14,7 +14,7 @@ import { PRIMARY_NAV } from './nav-links'
  * 页面之间长得越统一，越需要一个不用读标题就能确认位置的锚点。
  * 只有这一小块用 usePathname，页头其余部分仍是服务端渲染。
  */
-export function NavIndex() {
+export function NavIndex({ authed }: { authed: boolean }) {
   const pathname = usePathname()
 
   return (
@@ -41,12 +41,16 @@ export function NavIndex() {
           </Link>
         )
       })}
-      <Link
-        href="/auth/login"
-        className="ml-auto text-ink-soft transition-colors hover:text-accent"
-      >
-        登录
-      </Link>
+      {/* 已登录时不放「登录」，也不放「退出」—— 引擎里没有登出的路径，
+          放一个点了什么都不会发生的按钮，比少一个按钮糟糕得多。 */}
+      {!authed && (
+        <Link
+          href="/auth/login"
+          className="ml-auto text-ink-soft transition-colors hover:text-accent"
+        >
+          登录
+        </Link>
+      )}
     </nav>
   )
 }

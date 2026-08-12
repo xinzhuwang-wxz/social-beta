@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { PoolPlant } from './pool-plant'
-import { STAGE_LABEL, type GrowthStage } from '@/lib/pool-progress'
+import { STAGE_LABEL, type GrowthStage } from '@/lib/growth'
 
 export interface ForestPlant {
   key: string
@@ -29,7 +29,10 @@ export function ForestBand({
   className?: string
 }) {
   return (
-    <ul className={`flex flex-wrap items-end ${className ?? ''}`}>
+    // 每一格宽度固定：植物高度一致，土线就自然连成一条地平线。
+    // 标题长短不一时若让容器自适应，土线会被高矮不同的标签顶得参差不齐 ——
+    // 地平线一歪，这排东西就不再像一片林子，而像一堆图标。
+    <ul className={`flex flex-wrap ${className ?? ''}`}>
       {plants.map((plant) => {
         const body = (
           <>
@@ -39,13 +42,13 @@ export function ForestBand({
               label={null}
               className="h-20 w-14"
             />
-            <span className="mt-1 line-clamp-2 max-w-[7rem] text-center text-xs leading-snug text-ink-soft">
+            <span className="mt-1.5 line-clamp-2 text-center text-xs leading-snug text-ink-soft">
               {plant.title}
             </span>
           </>
         )
         return (
-          <li key={plant.key} className="flex flex-col items-center">
+          <li key={plant.key} className="w-20 sm:w-24">
             {plant.href ? (
               <Link
                 href={plant.href}
@@ -55,7 +58,7 @@ export function ForestBand({
                 {body}
               </Link>
             ) : (
-              body
+              <div className="flex flex-col items-center">{body}</div>
             )}
           </li>
         )

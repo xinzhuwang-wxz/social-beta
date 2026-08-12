@@ -1,11 +1,24 @@
 import { redirect } from 'next/navigation'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
+import { PageHeader, PageShell, ErrorBanner } from '@/components/page-header'
 import { registerPerson } from './actions'
 
 interface OnboardingPageProps {
   searchParams: Promise<{ error?: string }>
 }
+
+const FIELDS = [
+  {
+    name: 'handle',
+    label: 'handle',
+    hint: '唯一，别人 @ 你用这个',
+    placeholder: 'linlin',
+    minLength: 2,
+  },
+  { name: 'displayName', label: '显示名', hint: '别人看到的称呼', placeholder: '林同学' },
+  { name: 'campusId', label: '校区', hint: '同校区的人才互相看得到', placeholder: '如 pku' },
+] as const
 
 export default async function OnboardingPage({ searchParams }: OnboardingPageProps) {
   const actor = await requireActor()
@@ -16,62 +29,40 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
   if (existing) redirect('/home')
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-6">
-      <div>
-        <h1 className="text-2xl font-semibold">建个档</h1>
-        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-          只要这三项。画像不是填出来的——它会在你参与的池塘里自己长出来。
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="建个档"
+        title="只要这三项"
+        lede="没有兴趣标签、没有自我介绍、没有技能列表——注册接口连接收它们的字段都没有。画像是结果不是输入，它会从你参与过的事里自己长出来。"
+      />
 
-      <form action={registerPerson} className="flex flex-col gap-3">
-        <label htmlFor="handle" className="text-sm text-ink-soft">
-          handle（唯一，别人 @ 你用这个）
-        </label>
-        <input
-          id="handle"
-          name="handle"
-          required
-          minLength={2}
-          placeholder="linlin"
-          className="rounded border border-border-strong px-3 py-2"
-        />
+      {params.error && <ErrorBanner message={params.error} />}
 
-        <label htmlFor="displayName" className="text-sm text-ink-soft">
-          显示名
-        </label>
-        <input
-          id="displayName"
-          name="displayName"
-          required
-          placeholder="林同学"
-          className="rounded border border-border-strong px-3 py-2"
-        />
-
-        <label htmlFor="campusId" className="text-sm text-ink-soft">
-          校区
-        </label>
-        <input
-          id="campusId"
-          name="campusId"
-          required
-          placeholder="如 pku"
-          className="rounded border border-border-strong px-3 py-2"
-        />
+      <form action={registerPerson} className="flex max-w-md flex-col gap-5">
+        {FIELDS.map((field) => (
+          <div key={field.name} className="flex flex-col gap-1.5">
+            <label htmlFor={field.name} className="text-sm font-medium text-ink">
+              {field.label}
+              <span className="ml-2 text-xs font-normal text-ink-soft">{field.hint}</span>
+            </label>
+            <input
+              id={field.name}
+              name={field.name}
+              required
+              minLength={'minLength' in field ? field.minLength : undefined}
+              placeholder={field.placeholder}
+              className="border border-border bg-surface-raised px-3 py-2.5 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
+            />
+          </div>
+        ))}
 
         <button
           type="submit"
-          className="mt-2 rounded border border-seal bg-seal px-4 py-2 text-seal-ink transition hover:bg-seal-strong"
+          className="self-start border border-seal bg-seal px-5 py-2.5 text-sm font-medium text-seal-ink transition-colors hover:border-seal-strong hover:bg-seal-strong"
         >
           进池塘
         </button>
-
-        {params.error && (
-          <p role="alert" className="text-sm text-red-600">
-            {params.error}
-          </p>
-        )}
       </form>
-    </main>
+    </PageShell>
   )
 }

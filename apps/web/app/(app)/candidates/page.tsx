@@ -5,6 +5,7 @@ import { MAX_CANDIDATES, MIN_CANDIDATES } from '@pool/shared'
 import { requireActor } from '@/lib/actor'
 import { getEngine } from '@/lib/engine'
 import { CandidateCard } from '@/components/candidate-card'
+import { PageHeader, PageShell, EmptyState } from '@/components/page-header'
 
 type MyIntent = Awaited<ReturnType<PoolEngine['myIntents']>>[number]
 
@@ -27,9 +28,10 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
   if (!person) redirect('/onboarding')
 
   const { intent: intentId } = await searchParams
-  if (!intentId) return <NoIntentSelected />
-
   const mine = await engine.myIntents(actor)
+
+  if (!intentId) return <PickIntent intents={mine} />
+
   const sourceIntent = mine.find((i) => i.id === intentId)
   if (!sourceIntent) return <IntentNotFound intents={mine} />
 
@@ -42,34 +44,48 @@ export default async function CandidatesPage({ searchParams }: CandidatesPagePro
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-8 px-5 py-12 sm:px-8">
-      <header>
-        <p className="text-sm font-medium text-accent">为这条意图找搭子</p>
-        <h1 className="mt-2 font-head text-2xl font-semibold leading-snug text-ink sm:text-3xl">
-          {sourceIntent.rawText}
-        </h1>
-      </header>
+    <PageShell>
+      <PageHeader
+        eyebrow="你的 Agent 带回来的"
+        title={sourceIntent.rawText}
+        lede="每张卡上的「为什么是他」都必须引用他真的写过的内容——读起来像模板句，就说明这次没匹配好，你可以直接跳过。"
+        aside={
+          candidates.length > 0 ? (
+            <span className="mark text-ink-soft">{candidates.length} 张</span>
+          ) : undefined
+        }
+      />
 
       {matchError ? (
         <MatchError message={matchError} />
       ) : candidates.length === 0 ? (
         <EmptyCandidates />
       ) : (
-        <ul className="flex flex-col gap-4">
-          {candidates.map((candidate) => (
-            <li key={candidate.personId}>
-              <CandidateCard candidate={candidate} seekerIntentId={intentId} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="flex flex-col gap-5">
+            {candidates.map((candidate, i) => (
+              <li key={candidate.personId}>
+                <CandidateCard
+                  candidate={candidate}
+                  seekerIntentId={intentId}
+                  index={i + 1}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="border-t border-border pt-5 text-xs leading-relaxed text-ink-soft">
+            一张都不合适？什么都不做就行。不点「我来说」，对方永远不会知道你看过他——
+            候选卡不是聊天记录，它只存在于你这一侧。
+          </p>
+        </>
       )}
-    </main>
+    </PageShell>
   )
 }
 
 function EmptyCandidates() {
   return (
-    <div className="border border-dashed border-border p-6 text-sm leading-relaxed text-ink-soft">
+    <EmptyState>
       <p>
         校区里暂时没有合适的人可以推荐——不是没人在，是这一批凑不出
         {` ${MIN_CANDIDATES}`}–{MAX_CANDIDATES} 个靠谱的候选。
@@ -78,74 +94,94 @@ function EmptyCandidates() {
         href="/square"
         className="mt-3 inline-block text-accent underline decoration-dotted underline-offset-4"
       >
-        去意图广场自己看看 →
+        去种子广场自己翻翻 →
       </Link>
-    </div>
+    </EmptyState>
   )
 }
 
 function MatchError({ message }: { message: string }) {
   return (
-    <div className="border border-dashed border-border p-6 text-sm leading-relaxed text-ink-soft">
+    <EmptyState>
       <p>匹配暂时跑不动：{message}</p>
       <p className="mt-1">过会儿再回来看看，或者先去广场逛逛。</p>
       <Link
         href="/square"
         className="mt-3 inline-block text-accent underline decoration-dotted underline-offset-4"
       >
-        去意图广场 →
+        去种子广场 →
       </Link>
-    </div>
+    </EmptyState>
   )
 }
 
-function NoIntentSelected() {
+/**
+ * 没带意图参数时的落地形态。
+ *
+ * 原本这里是一句「还没有指定意图」的说明加一个去广场的链接 ——
+ * 但用户多半是从导航直接点进来的，他自己种的种子就在库里，
+ * 让他再跳一次广场才能选，是白白多一步。直接把他的种子列出来选。
+ */
+function PickIntent({ intents }: { intents: MyIntent[] }) {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 px-5 py-12 sm:px-8">
-      <h1 className="font-head text-2xl font-semibold text-ink">还没有指定意图</h1>
-      <p className="text-sm leading-relaxed text-ink-muted">
-        候选卡是为某一条具体的意图找的。先去广场发一句，再从那条意图旁边点「找搭子」。
-      </p>
-      <Link
-        href="/square"
-        className="self-start border border-accent px-4 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent-soft"
-      >
-        去发一条 →
-      </Link>
-    </main>
+    <PageShell>
+      <PageHeader
+        eyebrow="候选"
+        title="先挑一颗你种下的种子"
+        lede="候选是为某一颗具体的种子找的——不同的愿望要找的人不一样，所以没有一份「通用推荐」。"
+      />
+      {intents.length === 0 ? (
+        <EmptyState>
+          <p>你还没种下任何一颗。</p>
+          <Link
+            href="/square"
+            className="mt-3 inline-block text-accent underline decoration-dotted underline-offset-4"
+          >
+            去种一颗 →
+          </Link>
+        </EmptyState>
+      ) : (
+        <IntentPicker intents={intents} />
+      )}
+    </PageShell>
   )
 }
 
 function IntentNotFound({ intents }: { intents: MyIntent[] }) {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 px-5 py-12 sm:px-8">
-      <h1 className="font-head text-2xl font-semibold text-ink">这条意图找不到了</h1>
-      <p className="text-sm leading-relaxed text-ink-muted">
-        可能不是你发的，也可能链接不对。
-        {intents.length > 0 ? '挑一条你自己发过的：' : '去广场发一条新的吧。'}
-      </p>
-
-      {intents.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {intents.slice(0, 5).map((i) => (
-            <li key={i.id}>
-              <Link
-                href={`/candidates?intent=${i.id}`}
-                className="block border border-border px-4 py-2.5 text-sm text-ink transition-colors hover:border-accent"
-              >
-                {i.rawText}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-
+    <PageShell>
+      <PageHeader
+        eyebrow="候选"
+        title="这颗种子找不到了"
+        lede="可能不是你种的，也可能链接不对。候选只能由种下它的人来看。"
+      />
+      {intents.length > 0 && <IntentPicker intents={intents} />}
       <Link
         href="/square"
         className="self-start text-sm text-accent underline decoration-dotted underline-offset-4"
       >
-        去意图广场 →
+        去种子广场 →
       </Link>
-    </main>
+    </PageShell>
+  )
+}
+
+function IntentPicker({ intents }: { intents: MyIntent[] }) {
+  return (
+    <ul className="border-t border-border">
+      {intents.slice(0, 8).map((i) => (
+        <li key={i.id} className="border-b border-border">
+          <Link
+            href={`/candidates?intent=${i.id}`}
+            className="flex items-baseline justify-between gap-4 py-3.5 transition-colors hover:bg-surface-raised"
+          >
+            <span className="min-w-0 text-sm leading-relaxed text-ink break-anywhere">
+              {i.rawText}
+            </span>
+            <span className="mark shrink-0 text-accent">找人 →</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   )
 }

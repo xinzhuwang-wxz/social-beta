@@ -21,7 +21,7 @@
         "至少一条打 `PoolEngine` 的端到端测试通过",
         "RLS 已启用且经测试验证真的拦得住（不是「已开启」而已）"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-003",
@@ -57,7 +57,7 @@
         "广场按 `campus_id` 硬隔离，跨校区不可见",
         "测试：槽位结构完整性、hard/soft 分类正确、过期不可见、跨校区不可见"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-005",
@@ -76,7 +76,7 @@
         "「换一批」返回不重复的候选",
         "测试：被拉黑者绝不出现；候选数恒落在 [3,5]；触达上限后不再被推"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-006",
@@ -97,7 +97,7 @@
         "被匹配方不回应不产生任何惩罚或状态变化",
         "测试：`private` 切面泄漏计数为 0；`ai_sent_message` 恒为 0；不存在绕过接管创建 pool 的代码路径"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",
@@ -137,7 +137,7 @@
         "测试分段断言：`active` 阶段负例（沉默）数量显著多于正例；",
         "`forming` 阶段的卡片数量有上限，不追问不催促"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-009",
@@ -158,7 +158,7 @@
         "池塘转 `dormant`，数据零丢失，可完整回看",
         "测试：`dormant` 后所有 episode / artifact 仍可读；`next_hook` 非模板句"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-010",
@@ -178,7 +178,7 @@
         "**L2 全删重建等价性回归通过** —— 删光 facet / relation / KG 后从 L1 重建，结果等价",
         "测试：等价性回归；未成行的 intent 不进入任何 facet"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-011",
@@ -216,7 +216,7 @@
         "随机抽 20 人，蒸馏画像通过人工可读性检查（「像个人」）",
         "压测暴露：向量规模、Graphiti 写入量、单次匹配延迟"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-013",
@@ -234,7 +234,7 @@
         "**crew 提议需真人确认，不自动建群**",
         "测试：parent 链完整性；未确认时 crew 不存在"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-014",
@@ -251,6 +251,86 @@
         "`dyad` 池塘的精灵在形态与交互上即小火人",
         "精灵可回答本池塘的历史问题，答案可溯源到具体 `episode`",
         "测试：精灵不泄漏非本 pool 的任何记忆（跨池塘隔离断言）"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-015",
+      "issue": 15,
+      "milestone": null,
+      "priority": 14,
+      "title": "S14 · 对齐飞书 PRD：行动确认卡 + 花苞 + 邀请四选项 + 状态看板 + 线下提醒 + 需求 SOP",
+      "blockedBy": [],
+      "acceptanceCriteria": [
+        "行动确认卡：AI 汇总草稿（不落库不改状态）→ 真人改并提交 → 全员确认才进 `planned`（花苞）",
+        "改计划作废此前的确认 —— 大家确认的是那一版",
+        "邀请四选项：join / adjust / decline / later。adjust 留在邀请态并把诉求带进池塘",
+        "发起方看不到拒绝明细 —— 让人知道谁拒绝了自己，会让所有人倾向于不回应",
+        "行动房间状态看板：已定 / 未定 / 下一步（确定性规则算，不打模型）",
+        "线下转化：当天轻量状态（不做定位）+ 三个时间点提醒，每种只发一次，只在花苞后触发",
+        "需求 SOP：一轮追问、最多三题、可整轮跳过，问题用固定模板不由模型生成",
+        "上述能力全部接进 UI 并可从浏览器完整走通",
+        "时间作为排序信号参与打分（当前仍只是自由文本，不参与排序）"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-016",
+      "issue": 16,
+      "milestone": null,
+      "priority": 15,
+      "title": "S15 · 前端按 Forest 画风重做：一块主色域 + 一个聚焦圆 + 五阶段植物",
+      "blockedBy": [],
+      "acceptanceCriteria": [
+        "每屏一个占绝对面积的主色域，不是白底撒卡片",
+        "一个聚焦圆作为植物的舞台",
+        "每个成长阶段 2–4 个形状封顶（Forest 刻意省略细颗粒阶段，为清晰度做风格化）",
+        "inline SVG，不引外部图形库",
+        "`dormant` **不画枯树** —— PRD 明确写「行动失败可能来自客观原因，不该制造挫败感」",
+        "保持三态主题机制，浅色态不退化成白底",
+        "人的发言与 AI 的卡片有明确视觉区别",
+        "移动端优先、无横向滚动、键盘可达、焦点态可见、尊重 prefers-reduced-motion"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-017",
+      "issue": 17,
+      "milestone": null,
+      "priority": 16,
+      "title": "S16 · 架构审查遗留项（P2/P3）",
+      "blockedBy": [],
+      "acceptanceCriteria": [
+        "`tickSpirit` 从 GET 渲染路径挪到写路径之后或定时任务 —— 挂在 GET 上会让冷场时每刷新一次就多插一张卡",
+        "`InterventionContext` 加 `minutesSinceLastCard`，active 分支加冷却",
+        "`FORMING_CARD_CAP` 要么真的封顶要么改成 2（当前实际上限是 2，常量 3 永远够不着）",
+        "`candidate_set` 的 batch_no 并发窟窿：`on conflict do nothing` 后重读最新一批",
+        "`membership.left_at` 与 `state` 统一为 `state`（三处仍用 left_at，会把未确认的被邀请人算成成员）",
+        "权重档的 poolCount 只数已成行的池塘（当前把 invited 与未成行的 forming 都算进去）",
+        "增量蒸馏与全量重建的等价性：补一个「两个领域、其中一个未收尾」的用例让它先红，然后二选一收敛",
+        "「换一批」接进 UI，且真的换（排除历史批次已出现过的人）",
+        "拉黑没有任何 UI 或引擎方法能创建 —— 硬过滤守着一扇没有门把手的门",
+        "`/me` 的「可改」目前只有可见度与删除，缺文本编辑",
+        "`pool_kind` 的 intent/crew/dyad 三个值从未被创建，`pool_read` 里那半条策略是死的 —— 要么用上要么删掉"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-018",
+      "issue": 18,
+      "milestone": null,
+      "priority": 17,
+      "title": "S17 · 终局验收：UI-only autoresearch",
+      "blockedBy": [
+        15,
+        16
+      ],
+      "acceptanceCriteria": [
+        "覆盖 ≥10 种用户人格，各自独立跑完整旅程：大一新生零历史 / 社恐不敢先开口 / 一周发三条意图的活跃组局者 / 从不回消息的人 / 跨专业找队友需求很具体 / 考试周突然沉寂两周 / 只想找一次性搭子不想深交 / 想找长期社团 / 把多数切面设为私密的隐私敏感者 / 想让 AI 替他聊天的人",
+        "回答：拿掉 AI 之后产品还成立吗？成立即说明 AI 没做不可替代的事 —— 这是失败信号",
+        "回答：有多少连接被真人接管并真的发生了共同行动？只看接管率与成行率",
+        "回答：有没有留下下一次互动的理由？复现率是最终答案",
+        "反指标出数：Agent 发言占比（越低越好）、AI 代答次数（**必须恒为 0，非零则整轮不通过**）"
       ],
       "passes": false
     }

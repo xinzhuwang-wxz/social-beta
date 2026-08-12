@@ -1,5 +1,5 @@
 import { PoolPlant } from './pool-plant'
-import { STAGE_LABEL, type GrowthStage } from '@/lib/pool-progress'
+import { STAGE_LABEL, type GrowthStage } from '@/lib/growth'
 
 /**
  * 生长图谱 —— 落地页的主图，也是全站视觉语言的说明书。
@@ -13,17 +13,16 @@ import { STAGE_LABEL, type GrowthStage } from '@/lib/pool-progress'
  */
 const PLATE: { stage: GrowthStage; artifacts?: number; meaning: string }[] = [
   { stage: 'seed', meaning: '你说了一句人话，愿望落进土里' },
-  { stage: 'sprout', meaning: '双方都点了确认，破土' },
-  { stage: 'leafing', meaning: '开始沟通' },
-  { stage: 'growing', meaning: '时间、地点、人数逐渐定下来' },
-  { stage: 'budding', meaning: '完整计划已确认' },
-  { stage: 'blooming', artifacts: 2, meaning: '行动真实完成，返图让它多开一朵' },
-  { stage: 'seeding', meaning: '带着「下次去大觉寺」这句话睡着' },
+  { stage: 'sprout', meaning: '有人回了「算我一个」，破土' },
+  { stage: 'sapling', meaning: '在把时间、地点、谁带什么聊定' },
+  { stage: 'budding', meaning: '一张行动确认卡，所有人都点了确认' },
+  { stage: 'blooming', artifacts: 2, meaning: '事真的做成了，每张返图多开一朵' },
+  { stage: 'fruiting', meaning: '带着「下次去大觉寺」这句话睡着，籽还在' },
 ]
 
 export function GrowthPlate() {
   return (
-    <ol className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4 lg:grid-cols-7">
+    <ol className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
       {PLATE.map((item, i) => (
         <li
           key={item.stage}
@@ -35,7 +34,7 @@ export function GrowthPlate() {
             stage={item.stage}
             artifacts={item.artifacts}
             label={null}
-            className="h-16 w-12 shrink-0"
+            className="size-16 shrink-0"
           />
           <div>
             <p className="font-head text-base font-semibold text-ink">

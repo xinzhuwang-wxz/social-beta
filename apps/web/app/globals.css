@@ -3,30 +3,29 @@
 /* ==========================================================================
    设计令牌：种子 — 植物 — 森林
    --------------------------------------------------------------------------
-   这套调色板不是「主题色 + 几个辅助色」，而是三个各自有语义的角色。
-   之所以要把语义写死，是因为本产品的核心信息就是状态：
-   一件事是刚种下、正在长、开过花、还是睡着了 —— 用户应该扫一眼颜色就知道，
-   不必逐个读标签。颜色在这里承担信息，不承担装饰。
+   参照 Forest（专注森林），但抄的不是它的绿，是它构图上的胆量：
+   主屏 72% 的像素是一块纯色，中间一个圆，圆里一个土丘配两片叶子 ——
+   让色彩承担全部情绪，插画只做状态指示。所以这套 token 分成两层：
 
-     纸与墨（surface / ink / border）—— 结构。中性、低彩度，是土也是纸。
-       它占据画面 90% 以上。全站的「安静」由它保证，剩下两个角色才敢用力。
+   ── 第一层：安静的编辑区（页面 80% 以上的面积）
+     地与墨（surface / ink / border）—— 暖中性的浅灰 + 暖调深墨。
+       几乎没有彩度，这是全站「安静」的来源，也是下面两个颜色敢用力的前提。
 
-     叶（accent，绿）—— **活着**。只出现在正在生长的东西上：
-       进行中的行动、植物图形的活体部分、通往一个活着的东西的链接。
-       它是状态，不是号召。绿色按钮在这套系统里只用于「次要动作」，
-       因为主动作属于下面那个角色。
+     森林绿（accent）—— **活着**。插画的活体部分、链接、主按钮。
+       它是这个产品的颜色：一件事还在长，就用绿说话。
 
-     朱（seal，印泥红）—— **真人落手的地方**。
-       ADR-0002 说「确认即过滤」：准入由人完成，不由系统算。
-       那个动作在中文语境里的形象就是盖章。所以每一处需要真人签字的按钮
-       （我来说 / 确认加入 / 种下）都是朱色；而植物开的花也是朱色 ——
-       花是这些签字累积出来的结果。同一个颜色说同一件事：这里有人真的动了手。
+     朱（seal）—— 全站唯一的高饱和强调，只用在两处：
+       树上开的花，和四条红线。用量越少，出现时越有分量。
 
-     土（soil）—— 地平线以下。种子、土线、休眠。
-       它是唯一一个新增的暖色相，让整套色不至于变成一堆绿。用量极小。
+     土（soil）—— 地面以下与土丘。唯一的暖色相，让整套色不至于变成一堆绿。
 
-   刻意不做的事：不堆叶子图标、不用绿色铺满页面、不做暖米色 + 衬线 + 赭石那套
-   「AI 生成落地页」的标配、不用圆角（方角是标本册与活字印刷的语言）。
+   ── 第二层：主色域（每一屏一块）
+     field / field-ink / disc —— 一块占绝对面积的纯色 + 圆 + 圆里的植物。
+       它是这一屏的情绪。白底上撒卡片是安全的，也是没有表情的。
+
+   刻意不做的事：不堆叶子图标、不让绿铺满整页（那会和「校园社交」的语境打架）、
+   不做暖米色 + 衬线 + 赭石那套「AI 生成落地页」的标配。
+   圆角只在色域里的 pill 上出现一次，其余一律方角。
 
    三态深浅色规则（不可破坏）：
    1. 完整的浅色调色板只在裸 :root 里定义一次，这是唯一真相源。
@@ -43,100 +42,122 @@
 :root {
   color-scheme: light;
 
-  /* 纸：偏冷的苔灰，不是暖米色。彩度压到几乎为零，
-     好让后面出现的每一点绿和朱都是有意义的。 */
-  --surface: #e8ebe4;
-  --surface-alt: #dde1d7; /* 次级表面：分区底、表头、静态信息块 */
-  --surface-raised: #f6f8f3; /* 浮起：卡片、输入框所在的那一层 */
+  /* 地：暖中性的浅灰，几乎没有彩度。
+     它必须够安静 —— 全站唯一饱和的两个颜色（森林绿、朱）才有力气说话。
+     刻意压住黄味：暖米色 + 衬线 + 赭石那一套是「AI 生成落地页」的标配，
+     我们要的是暖，不是那股味道。 */
+  --surface: #f0efe9;
+  --surface-alt: #e5e3da; /* 次级表面：分区底、表头、精灵的卡片 */
+  --surface-raised: #faf9f5; /* 浮起：卡片、输入框所在的那一层 */
 
-  /* 墨：带一点绿的深色，不是纯黑 —— 纯黑在纸色上会显得脏 */
-  --ink: #161c15;
-  --ink-muted: #444d42;
-  --ink-soft: #586254; /* 小字用它排正文也要过 AA：在 surface 上 5.3:1 */
+  /* 墨：带暖调的深色，不是纯黑 —— 纯黑压在暖灰上会显得脏 */
+  --ink: #1b1a16;
+  --ink-muted: #4a4842;
+  --ink-soft: #5f5c54; /* 小字用它排正文也要过 AA：在 surface 上 5.6:1 */
 
-  --border: #c8cdbf;
-  --border-strong: #9aa392;
+  --border: #d4d1c7;
+  --border-strong: #a5a196;
 
-  /* 叶：真正的叶绿，不是 UI 里那种偏青的「成功绿」 */
-  --accent: #2c6b3d;
-  --accent-strong: #1f5030;
-  --accent-soft: #d6e2d4;
-  --accent-ink: #f3f7ef;
+  /* 森林绿：插画、链接、主按钮。它就是「活着」的意思 */
+  --accent: #245c3f;
+  --accent-strong: #18452f;
+  --accent-soft: #dde7de;
+  --accent-ink: #f4f8f2;
 
-  /* 朱：印泥。真人签字与开花共用它 */
+  /* 朱：全站唯一的高饱和强调。只用在两处 ——
+     树上开的花，和四条红线。别的地方一律不许碰它，
+     它出现得越少，出现时越有分量。 */
   --seal: #9e3520;
   --seal-strong: #7d2917;
-  --seal-soft: #eedcd4;
+  --seal-soft: #f0dcd4;
   --seal-ink: #fdf3ee;
 
-  /* 土：地平线以下。种子、土线、休眠 */
-  --soil: #6a5a45;
-  --soil-soft: #dcd5c6;
+  /* 土：地平线以下。种子、土丘、落籽 */
+  --soil: #6b5a45;
+  --soil-soft: #ded7c8;
 
-  --focus: #2c6b3d;
+  /* 主色域：每一屏都有一块占绝对面积的纯色。
+     这是从 Forest 抄来的唯一一件事 —— 不是它的绿，是它敢把七成屏幕
+     交给一块纯色、让色彩承担全部情绪，插画只做状态指示。
+     白底上撒卡片是安全的，也是没有表情的。 */
+  --field: #35785a;
+  --field-ink: #f4f8f2; /* 色域上的文字。对 --field 至少 5:1 */
+  /* 聚焦圆：植物长在这个圆里。圆是舞台，不是装饰。 */
+  --disc: #e6e4ab;
+
+  --focus: #245c3f;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    /* 深色不是「浅色反转」，是同一片林子入夜：绿更亮、土更暖、纸变成林下的暗 */
-    --surface: #10130f;
-    --surface-alt: #171b15;
-    --surface-raised: #1b201a;
+    /* 深色不是「浅色反转」，是同一片林子入夜：绿更亮、土更暖、地变成林下的暗。
+       注意色域在深色下**没有退化成深灰** —— 「一块主色域」是结构，不是浅色态的装饰。 */
+    --surface: #141410;
+    --surface-alt: #1c1c16;
+    --surface-raised: #21211a;
 
-    --ink: #e6ebe0;
-    --ink-muted: #a5ad9f;
-    --ink-soft: #7d867a;
+    --ink: #eae8df;
+    --ink-muted: #a8a498;
+    --ink-soft: #807c70;
 
-    --border: #2a3126;
-    --border-strong: #414a3c;
+    --border: #2e2e26;
+    --border-strong: #474437;
 
-    --accent: #6cc07f;
-    --accent-strong: #93d9a4;
-    --accent-soft: #17301c;
-    --accent-ink: #071008;
+    --accent: #6fbb8b;
+    --accent-strong: #95d6ac;
+    --accent-soft: #1a3324;
+    --accent-ink: #08150d;
 
     --seal: #e0785a;
     --seal-strong: #ee9174;
-    --seal-soft: #35190f;
+    --seal-soft: #361a10;
     --seal-ink: #180a05;
 
     --soil: #a08a68;
     --soil-soft: #241d13;
 
-    --focus: #6cc07f;
+    --field: #1e4d3a;
+    --field-ink: #eaf2ec;
+    --disc: #2a241b;
+
+    --focus: #6fbb8b;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --surface: #10130f;
-  --surface-alt: #171b15;
-  --surface-raised: #1b201a;
+  --surface: #141410;
+  --surface-alt: #1c1c16;
+  --surface-raised: #21211a;
 
-  --ink: #e6ebe0;
-  --ink-muted: #a5ad9f;
-  --ink-soft: #7d867a;
+  --ink: #eae8df;
+  --ink-muted: #a8a498;
+  --ink-soft: #807c70;
 
-  --border: #2a3126;
-  --border-strong: #414a3c;
+  --border: #2e2e26;
+  --border-strong: #474437;
 
-  --accent: #6cc07f;
-  --accent-strong: #93d9a4;
-  --accent-soft: #17301c;
-  --accent-ink: #071008;
+  --accent: #6fbb8b;
+  --accent-strong: #95d6ac;
+  --accent-soft: #1a3324;
+  --accent-ink: #08150d;
 
   --seal: #e0785a;
   --seal-strong: #ee9174;
-  --seal-soft: #35190f;
+  --seal-soft: #361a10;
   --seal-ink: #180a05;
 
   --soil: #a08a68;
   --soil-soft: #241d13;
 
-  --focus: #6cc07f;
+  --field: #1e4d3a;
+  --field-ink: #eaf2ec;
+  --disc: #2a241b;
+
+  --focus: #6fbb8b;
 }
 
 /* --------------------------------------------------------------------------
@@ -169,6 +190,10 @@
 
   --color-soil: var(--soil);
   --color-soil-soft: var(--soil-soft);
+
+  --color-field: var(--field);
+  --color-field-ink: var(--field-ink);
+  --color-disc: var(--disc);
 
   --color-focus: var(--focus);
 
@@ -273,6 +298,41 @@ a {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   line-height: 1.4;
+}
+
+/* 主色域上的大字：黑体细体、字号大、字距松。
+   刻意和正文区的宋体标题分成两个语域 ——
+   色域是情绪，正文区是编辑。两种语气混在一起会互相削弱。 */
+.field-title {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+}
+
+/* 元数据 pill。全站唯一允许圆角的地方：
+   方角是本站的语言，而 pill 是色域上那套语言的一部分，
+   它出现在色域里正好把两个语域分开，不会互相污染。 */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--field-ink) 16%, transparent);
+  color: var(--field-ink);
+}
+
+/* pill 里的琥珀色圆点 —— Forest 用它标一条元数据的「类别」。
+   这里只在需要区分两三条元数据时才用，不做成每个 pill 都有的装饰。 */
+.pill-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--disc);
+  flex-shrink: 0;
 }
 
 /* --------------------------------------------------------------------------

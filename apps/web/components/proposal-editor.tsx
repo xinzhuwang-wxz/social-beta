@@ -27,6 +27,9 @@ type TakeOverAction = (
  * 用户可以直接用草稿、改几个字、或者全删了自己写。产品的红线在这里：
  * 表述方式的决定权必须留在真人手上，一个只能点「发送」的只读卡片
  * 就是把这条红线关掉了一半。
+ *
+ * 版面也在说同一件事：提案卡那几块是灰底的参考资料，只有最下面那个
+ * 输入框是朱框的 —— 全站只有真人落手的地方才用朱色。
  */
 export function ProposalEditor({
   seekerIntentId,
@@ -40,11 +43,14 @@ export function ProposalEditor({
   takeOverAction: TakeOverAction
 }) {
   const boundRehearse = rehearseAction.bind(null, seekerIntentId, candidateIntentId)
-  const [rehearseState, rehearseDispatch, rehearsePending] = useActionState(boundRehearse, REHEARSE_INITIAL)
+  const [rehearseState, rehearseDispatch, rehearsePending] = useActionState(
+    boundRehearse,
+    REHEARSE_INITIAL,
+  )
 
   return (
     <div className="flex flex-col gap-5">
-      <form action={rehearseDispatch}>
+      <form action={rehearseDispatch} className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <button
           type="submit"
           disabled={rehearsePending}
@@ -54,12 +60,16 @@ export function ProposalEditor({
             ? '两边的 Agent 在聊…'
             : rehearseState.status === 'ready'
               ? '换一版提案'
-              : '生成提案'}
+              : '让它们聊一轮'}
         </button>
+        <p className="text-xs text-ink-soft">这一步只在你这一侧发生</p>
       </form>
 
       {rehearseState.status === 'error' && (
-        <p role="alert" className="text-sm text-seal">
+        <p
+          role="alert"
+          className="border-l-2 border-seal bg-seal-soft px-4 py-3 text-sm text-seal-strong"
+        >
           {rehearseState.message}
         </p>
       )}
@@ -93,89 +103,119 @@ function ProposalBody({
   const [opening, setOpening] = useState(proposal.openingDraft)
   const [showTranscript, setShowTranscript] = useState(false)
 
+  const edited = opening.trim() !== proposal.openingDraft.trim()
+
   return (
-    <div className="flex flex-col gap-4 border border-border bg-surface-raised p-5">
-      <div>
-        <p className="text-xs font-medium text-ink-soft">共同话题</p>
-        <ul className="mt-1.5 flex flex-wrap gap-2">
-          {proposal.sharedTopics.map((t) => (
-            <li key={t} className="border border-border px-2.5 py-1 text-xs text-ink">
-              {t}
-            </li>
-          ))}
-        </ul>
-      </div>
+    <div className="flex flex-col gap-5">
+      <div className="border border-border bg-surface-raised">
+        <div className="border-b border-border px-4 py-2.5">
+          <span className="mark text-ink-soft">提案卡 · 草稿</span>
+        </div>
 
-      <div className="border-l-2 border-accent bg-accent-soft p-3">
-        <p className="text-xs font-medium text-accent-strong">行动提案</p>
-        <p className="mt-1 text-sm leading-relaxed text-ink">
-          {proposal.actionProposal.what} · {proposal.actionProposal.when} · {proposal.actionProposal.where}
-        </p>
-        <p className="mt-1 text-xs text-ink-soft">{proposal.actionProposal.rationale}</p>
-      </div>
+        <div className="border-b border-border px-4 py-3">
+          <p className="mark text-ink-soft">共同话题</p>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {proposal.sharedTopics.map((t) => (
+              <li
+                key={t}
+                className="border border-border px-2 py-0.5 text-xs text-ink break-anywhere"
+              >
+                {t}
+              </li>
+            ))}
+          </ul>
+        </div>
 
-      <div className="border-l-2 border-seal bg-seal-soft/50 p-3">
-        <p className="text-xs font-medium text-seal-strong">风险提示</p>
-        <p className="mt-1 text-sm leading-relaxed text-ink">{proposal.riskNote}</p>
-      </div>
+        <div className="border-b border-border px-4 py-3">
+          <p className="mark text-accent-strong">行动提案</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-ink break-anywhere">
+            {proposal.actionProposal.what} · {proposal.actionProposal.when} ·{' '}
+            {proposal.actionProposal.where}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-ink-soft break-anywhere">
+            {proposal.actionProposal.rationale}
+          </p>
+        </div>
 
-      <button
-        type="button"
-        onClick={() => setShowTranscript((v) => !v)}
-        className="self-start text-xs text-accent underline decoration-dotted underline-offset-4"
-      >
-        {showTranscript ? '收起往来记录' : '看看两边 Agent 具体聊了什么'}
-      </button>
-      {showTranscript && (
-        <ol className="flex flex-col gap-1.5 border-t border-border pt-3 text-xs text-ink-soft">
-          {transcript.map((m, i) => (
-            <li key={i}>
-              <span className="font-medium text-ink-muted">
-                {m.role === 'agent_a' ? '你的 Agent' : '对方的 Agent'}：
-              </span>
-              {m.parts.map((p) => p.text).join('')}
-            </li>
-          ))}
-        </ol>
-      )}
+        <div className="border-b border-border px-4 py-3">
+          <p className="mark text-ink-soft">风险提示</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-ink break-anywhere">
+            {proposal.riskNote}
+          </p>
+        </div>
 
-      <form action={dispatch} className="flex flex-col gap-2 border-t border-border pt-4">
-        <label htmlFor="opening" className="text-sm font-medium text-ink">
-          第一句话——草稿在下面，改成你自己的说法，或者删了重写
-        </label>
-        <textarea
-          id="opening"
-          name="opening"
-          required
-          rows={3}
-          value={opening}
-          onChange={(e) => setOpening(e.target.value)}
-          className="border border-border bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-soft focus-visible:border-accent"
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="submit"
-            disabled={pending || opening.trim().length === 0}
-            className="border border-seal bg-seal px-5 py-2.5 text-sm font-medium text-seal-ink transition-colors hover:border-seal-strong hover:bg-seal-strong disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pending ? '发出去…' : '我来说'}
-          </button>
+        <div className="px-4 py-3">
           <button
             type="button"
-            onClick={() => setOpening(proposal.openingDraft)}
-            className="text-xs text-ink-soft underline decoration-dotted underline-offset-4"
+            onClick={() => setShowTranscript((v) => !v)}
+            className="text-xs text-accent underline decoration-dotted underline-offset-4"
           >
-            换回草稿原文
+            {showTranscript ? '收起往来记录' : '看看两边 Agent 具体聊了什么'}
           </button>
+          {showTranscript && (
+            <ol className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+              {transcript.map((m, i) => (
+                <li key={i} className="text-xs leading-relaxed text-ink-soft break-anywhere">
+                  <span className="text-ink-muted">
+                    {m.role === 'agent_a' ? '你的 Agent' : '对方的 Agent'}：
+                  </span>
+                  {m.parts.map((p) => p.text).join('')}
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
-        {state.status === 'error' && (
-          <p role="alert" className="text-sm text-seal">
-            {state.message}
+      </div>
+
+      {/* 全站只有真人落手的地方用朱色。这个框是其中之一。 */}
+      <form action={dispatch} className="border border-seal">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-seal bg-seal-soft px-4 py-2.5">
+          <label htmlFor="opening" className="text-sm font-medium text-ink">
+            第一句话——你说了算
+          </label>
+          <span className="mark text-seal-strong">{edited ? '你改过了' : '草稿原文'}</span>
+        </div>
+
+        <div className="flex flex-col gap-3 px-4 py-4">
+          <p className="text-xs leading-relaxed text-ink-soft">
+            草稿在下面，改成你自己的说法、或者整段删了重写都行。发出去的是这个框里的字，不是 AI 写的那句。
           </p>
-        )}
-        <p className="text-xs text-ink-soft">
-          点「我来说」才会真的开池塘、真的把这句话发出去——在这之前，对方完全不知道有这次预演。
-        </p>
+          <textarea
+            id="opening"
+            name="opening"
+            required
+            rows={4}
+            value={opening}
+            onChange={(e) => setOpening(e.target.value)}
+            className="border border-border bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-soft focus-visible:border-seal"
+          />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <button
+              type="submit"
+              disabled={pending || opening.trim().length === 0}
+              className="border border-seal bg-seal px-5 py-2.5 text-sm font-medium text-seal-ink transition-colors hover:border-seal-strong hover:bg-seal-strong disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pending ? '发出去…' : '我来说'}
+            </button>
+            {edited && (
+              <button
+                type="button"
+                onClick={() => setOpening(proposal.openingDraft)}
+                className="text-xs text-ink-soft underline decoration-dotted underline-offset-4"
+              >
+                换回草稿原文
+              </button>
+            )}
+          </div>
+          {state.status === 'error' && (
+            <p role="alert" className="text-sm text-seal">
+              {state.message}
+            </p>
+          )}
+          <p className="text-xs leading-relaxed text-ink-soft">
+            点「我来说」才会真的开始——这一刻种子送到对方手上，他确认了才破土。
+          </p>
+        </div>
       </form>
     </div>
   )

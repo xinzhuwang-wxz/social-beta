@@ -18,10 +18,12 @@ interface TapPayload {
 /**
  * 精灵发的一张卡。
  *
- * 这是「AI 从不冒充人说话」这句产品立场最直接的可视化：虚线边框 + 一句
- * 显眼的说明，和真人消息的实心气泡在视觉上完全是两回事，不是靠一个小
- * 图标区分。点击选项直接调 tapCard——不经二次 LLM 解析，卡片本身已经
- * 把语义定死了。
+ * 版面上它是**页边批注**，不是发言：通栏、虚线左界、等宽小标、没有说话人名字，
+ * 和真人那种有宽度上限、会靠左靠右的气泡在形状上完全是两回事。
+ * 这是「AI 从不冒充人说话」最直接的可视化 —— 不是靠一个小图标区分。
+ *
+ * 点击选项直接调 tapCard，不经二次 LLM 解析：卡片本身已经把语义定死了。
+ * 而且这一点也是看板的数据源 —— 板上「已经定了」那几项，全部来自这里的点击。
  */
 export function PoolCard({
   entry,
@@ -37,15 +39,36 @@ export function PoolCard({
   const parsed = AgentCard.safeParse(entry.payload)
 
   return (
-    <div className="border border-dashed border-border-strong bg-surface-alt p-4 sm:p-5">
-      <p className="mb-2 text-xs font-medium text-ink-soft">精灵 · 不是任何人说的话</p>
-      {parsed.success ? (
-        <CardBody card={parsed.data} poolId={poolId} cardId={entry.id} viewerPersonId={viewerPersonId} taps={taps} />
-      ) : (
-        // 结构解析失败时退到摘要文本——总有内容可看，不留一个空壳。
-        <p className="text-sm text-ink">{entry.summary}</p>
-      )}
+    <div className="border-l-2 border-dashed border-border-strong bg-surface-alt">
+      <div className="flex items-center gap-2 px-4 py-2">
+        <SpiritGlyph />
+        <span className="mark text-ink-soft">精灵 · 卡片，不是任何人说的话</span>
+      </div>
+      <div className="px-4 pb-4">
+        {parsed.success ? (
+          <CardBody
+            card={parsed.data}
+            poolId={poolId}
+            cardId={entry.id}
+            viewerPersonId={viewerPersonId}
+            taps={taps}
+          />
+        ) : (
+          // 结构解析失败时退到摘要文本——总有内容可看，不留一个空壳。
+          <p className="text-sm leading-relaxed text-ink break-anywhere">{entry.summary}</p>
+        )}
+      </div>
     </div>
+  )
+}
+
+/** 精灵的记号：一个空心菱形。空心 = 不是人；菱形 = 和全站的方块区分开。 */
+function SpiritGlyph() {
+  return (
+    <span
+      aria-hidden="true"
+      className="size-2 shrink-0 rotate-45 border border-accent"
+    />
   )
 }
 
@@ -67,9 +90,9 @@ function CardBody({
       const mine = taps.find((t) => t.actorId === viewerPersonId)
       const myOptionId = mine ? (mine.payload as TapPayload).optionId : undefined
       return (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-ink">{card.question}</p>
-          <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
+          <p className="text-sm leading-relaxed text-ink break-anywhere">{card.question}</p>
+          <div className="flex flex-col gap-1.5">
             {card.options.map((opt) => {
               const count = taps.filter((t) => (t.payload as TapPayload).optionId === opt.id).length
               const chosen = myOptionId === opt.id
@@ -78,48 +101,58 @@ function CardBody({
                   <button
                     type="submit"
                     disabled={Boolean(myOptionId)}
-                    className={`flex w-full items-center justify-between gap-3 border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed ${
+                    className={`flex w-full items-start justify-between gap-3 border px-3 py-2 text-left text-sm leading-snug transition-colors disabled:cursor-not-allowed ${
                       chosen
-                        ? 'border-accent bg-accent-soft text-accent-strong'
-                        : 'border-border text-ink hover:border-accent disabled:opacity-60'
+                        ? 'border-accent bg-accent-soft text-ink'
+                        : 'border-border bg-surface text-ink hover:border-accent disabled:opacity-60'
                     }`}
                   >
-                    <span>
+                    <span className="min-w-0 break-anywhere">
                       {opt.label}
-                      {opt.whenHint && <span className="ml-2 text-xs text-ink-soft">{opt.whenHint}</span>}
+                      {opt.whenHint && (
+                        <span className="ml-2 text-xs text-ink-soft">{opt.whenHint}</span>
+                      )}
                     </span>
-                    {count > 0 && <span className="shrink-0 text-xs text-ink-soft">{count} 人选了</span>}
+                    {count > 0 && (
+                      <span className="mark shrink-0 pt-0.5 text-ink-soft">{count} 票</span>
+                    )}
                   </button>
                 </form>
               )
             })}
           </div>
-          {myOptionId && <p className="text-xs text-ink-soft">你选了这个。</p>}
+          <p className="text-xs text-ink-soft">
+            {myOptionId
+              ? '你选了这个。所有人都选了同一个，看板上才会记成「已经定了」。'
+              : '点一下就算数——看板上的「已经定了」只认这里的点击。'}
+          </p>
         </div>
       )
     }
 
     case 'roster': {
       return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <p className="text-sm text-ink">还缺人手：</p>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-1.5">
             {card.slots.map((slot) => {
               const full = slot.takenBy.length >= slot.needed
               const already = slot.takenBy.some((t) => t.personId === viewerPersonId)
               const claimed = taps.some(
-                (t) => t.actorId === viewerPersonId && (t.payload as TapPayload).optionId === slot.role,
+                (t) =>
+                  t.actorId === viewerPersonId && (t.payload as TapPayload).optionId === slot.role,
               )
               return (
                 <li
                   key={slot.role}
-                  className="flex items-center justify-between gap-3 border border-border px-3 py-2 text-sm"
+                  className="flex items-center justify-between gap-3 border border-border bg-surface px-3 py-2 text-sm"
                 >
-                  <span className="text-ink">
+                  <span className="min-w-0 text-ink break-anywhere">
                     {ROLE_LABEL[slot.role]}
                     <span className="ml-2 text-xs text-ink-soft">
                       {slot.takenBy.length}/{slot.needed}
-                      {slot.takenBy.length > 0 && ` · ${slot.takenBy.map((t) => t.displayName).join('、')}`}
+                      {slot.takenBy.length > 0 &&
+                        ` · ${slot.takenBy.map((t) => t.displayName).join('、')}`}
                     </span>
                   </span>
                   {!full && !already && (
@@ -137,18 +170,20 @@ function CardBody({
               )
             })}
           </ul>
-          <p className="text-xs text-ink-soft">举手是信号，不是自动指派——真定下来还得群里说一声。</p>
+          <p className="text-xs leading-relaxed text-ink-soft">
+            举手是信号，不是自动指派——真定下来还得群里说一声。
+          </p>
         </div>
       )
     }
 
     case 'recap':
-      return <p className="text-sm text-ink">{card.prompt}</p>
+      return <p className="text-sm leading-relaxed text-ink break-anywhere">{card.prompt}</p>
 
     case 'wake':
-      return <p className="text-sm text-ink">{card.hook}</p>
+      return <p className="text-sm leading-relaxed text-ink break-anywhere">{card.hook}</p>
 
     case 'catchup':
-      return <p className="text-sm text-ink">{card.summary}</p>
+      return <p className="text-sm leading-relaxed text-ink break-anywhere">{card.summary}</p>
   }
 }

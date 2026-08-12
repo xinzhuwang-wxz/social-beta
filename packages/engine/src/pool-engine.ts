@@ -62,6 +62,7 @@ import {
   reminderText,
   type DueReminder,
 } from './reminder-service'
+import { isActiveNow, recomputeResponsiveness } from './responsiveness-service'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -457,7 +458,10 @@ export class PoolEngine {
   async confirmJoin(actor: ActorContext, poolId: string): Promise<void> {
     const me = await this.currentPerson(actor)
     if (!me) throw new Error('尚未建档')
-    return this.asSystem((tx) => confirmJoin(tx, poolId, me.id))
+    await this.asSystem(async (tx) => {
+      await confirmJoin(tx, poolId, me.id)
+      await recomputeResponsiveness(tx, me.id)
+    })
   }
 
   /** 退出池塘。聊下来发现不合适再走，是正常流程。 */
@@ -782,9 +786,23 @@ export class PoolEngine {
       const members = await membersOf(tx, poolId)
       for (const personId of members) {
         await distillPerson({ sql: tx, model: this.deps.model }, personId, scope)
-        // 关系温度不打模型，全量重算很便宜
+        // 关系温度与回应先验都不打模型，全量重算很便宜
         await recomputeRelations(tx, personId)
+        await recomputeResponsiveness(tx, personId)
       }
+    })
+  }
+
+  /**
+   * 重算某人的回应先验。收敛点之外的显式触发口。
+   *
+   * 存在的理由是「没有回应」本身也是信号，而它不会触发任何事件 ——
+   * 一个人从不回应，就没有任何回调会带着他的 id 跑过来。
+   * 定时任务与测试需要一个能主动叫醒它的入口。
+   */
+  async recomputeResponsivenessFor(personId: string): Promise<void> {
+    await this.asSystem(async (tx) => {
+      await recomputeResponsiveness(tx, personId)
     })
   }
 
@@ -957,6 +975,11 @@ export class PoolEngine {
           where pool_id = ${poolId} and person_id = ${me.id}
         `
       }
+
+      // 回应先验最直接的信号源就是这里。不等到蒸馏时才算 ——
+      // 一个人的回应习惯会立刻影响别人是否该被推给他，
+      // 而蒸馏只在池塘收尾时跑，那时已经晚了一整个匹配周期。
+      await recomputeResponsiveness(tx, me.id)
     })
   }
 
@@ -981,9 +1004,27 @@ export class PoolEngine {
     `)
   }
 
-  /** 到期该发的提醒。定时任务用。 */
+  /**
+   * 到期该发的提醒。定时任务用。
+   *
+   * 会跳过收件人全都在非活跃时段的池塘 —— 凌晨三点弹「还有两小时集合」
+   * 只会让人关掉通知，而关掉之后连该收的提醒也收不到了。
+   */
   async dueReminders(limit = 200): Promise<DueReminder[]> {
-    return this.asSystem((tx) => dueReminders(tx, limit))
+    const all = await this.asSystem((tx) => dueReminders(tx, limit))
+    if (all.length === 0) return all
+
+    const hours = await this.asSystem(
+      (tx) => tx<{ personId: string; activeHours: number[] }[]>`
+        select person_id as "personId", active_hours as "activeHours" from responsiveness
+      `,
+    )
+    const byPerson = new Map(hours.map((h) => [h.personId, h.activeHours]))
+    return all.filter((r) =>
+      // 只要有一个人现在活跃就发 —— 提醒是发进池塘的，不是私聊
+      r.silentMembers.length === 0 ||
+      r.silentMembers.some((m) => isActiveNow(byPerson.get(m.personId) ?? [])),
+    )
   }
 
   /** 把提醒作为精灵的卡片投进池塘，并记录已发，避免重复打扰。 */

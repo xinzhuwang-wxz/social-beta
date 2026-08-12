@@ -24,12 +24,13 @@ export function SpecimenCard() {
         <span className="mark text-seal">开花</span>
       </div>
 
-      <div className="flex items-end gap-5 px-5 pt-6 pb-4">
-        <PoolPlant stage="blooming" artifacts={3} animate label={null} className="h-40 w-30 shrink-0" />
+      {/* 窄屏改成上下：并排时标签列只剩一百多像素，「4 人，都点过确认」会被拆成三行 */}
+      <div className="flex flex-col gap-4 px-5 pt-6 pb-4 sm:flex-row sm:items-end sm:gap-5">
+        <PoolPlant stage="blooming" artifacts={3} animate label={null} className="h-36 w-27 shrink-0" />
         <dl className="min-w-0 flex-1">
           {LABELS.map((row) => (
             <div key={row.k} className="flex gap-3 border-b border-border py-2 last:border-b-0">
-              <dt className="mark w-14 shrink-0 pt-0.5 text-ink-soft">{row.k}</dt>
+              <dt className="mark w-12 shrink-0 pt-0.5 text-ink-soft">{row.k}</dt>
               <dd className="min-w-0 flex-1 text-sm leading-snug text-ink">{row.v}</dd>
             </div>
           ))}
@@ -37,8 +38,7 @@ export function SpecimenCard() {
       </div>
 
       <figcaption className="border-t border-border px-5 py-4 text-sm leading-relaxed text-ink-soft">
-        这株植物不代表某个人。它代表<span className="text-ink">四个人共同推动的那一件事</span>
-        ——谁都没法一个人把它养开花。
+        这株植物不代表某个人。它代表<span className="text-ink">四个人共同推动的那一件事</span>——谁都没法一个人把它养开花。
       </figcaption>
     </figure>
   )

@@ -34,10 +34,10 @@ const RED_LINES = [
  */
 const SAMPLE_FOREST = [
   { key: "a", stage: "blooming" as const, artifacts: 3, title: "周六后海骑车" },
-  { key: "b", stage: "seeding" as const, artifacts: 1, title: "陶艺工作坊" },
-  { key: "c", stage: "growing" as const, artifacts: 0, title: "数模组队" },
+  { key: "b", stage: "fruiting" as const, artifacts: 1, title: "陶艺工作坊" },
+  { key: "c", stage: "sapling" as const, artifacts: 0, title: "数模组队" },
   { key: "d", stage: "blooming" as const, artifacts: 1, title: "香山看红叶" },
-  { key: "e", stage: "seeding" as const, artifacts: 2, title: "创业赛复盘" },
+  { key: "e", stage: "fruiting" as const, artifacts: 2, title: "创业赛复盘" },
   { key: "f", stage: "budding" as const, artifacts: 0, title: "毕设互审" },
 ];
 
@@ -71,9 +71,10 @@ export default function Home() {
                 <br />
                 真的发生过的事。
               </h1>
+              {/* 中文段落必须写成一行。JSX 会把源码里的换行折成一个空格，
+                  中文之间多出来的那个半角空格在页面上非常刺眼。 */}
               <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
-                池塘不是又一个帮你找搭子的 App——找到人只是开头。
-                你说一句想干什么，那就是一颗种子；你的 Agent 把它送到可能合得来的人手上；
+                池塘不是又一个帮你找搭子的 App——找到人只是开头。你说一句想干什么，那就是一颗种子；你的 Agent 把它送到可能合得来的人手上；
                 <span className="text-ink">两个人都点了确认，它才破土。</span>
                 之后长叶、生长、开花，全靠你们真的把这件事做成。
               </p>
@@ -104,9 +105,7 @@ export default function Home() {
               这株植物长到哪一步，就是这件事办到哪一步
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
-              它不是进度条的装饰版本。每一次形态变化背后都有一件真的发生过的事：
-              有人点了确认、有人在卡片上投了票、有人传了一张返图。
-              没有发生的事，不会让它长高一毫米。
+              它不是进度条的装饰版本。每一次形态变化背后都有一件真的发生过的事：有人点了确认、有人在卡片上投了票、有人传了一张返图。没有发生的事，不会让它长高一毫米。
             </p>
             <div className="mt-8">
               <GrowthPlate />
@@ -122,8 +121,7 @@ export default function Home() {
               别的 AI 替你说话，我们的 AI 只把话准备好
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
-              「AI 帮你聊天」类产品让 AI
-              在后台替你逐句回复，对方甚至分不清跟他说话的是不是真人。我们认为这制造的是虚假繁荣——关系里最重要的确认环节被跳过了。所以池塘划了一条线：
+              「AI 帮你聊天」类产品让 AI 在后台替你逐句回复，对方甚至分不清跟他说话的是不是真人。我们认为这制造的是虚假繁荣——关系里最重要的确认环节被跳过了。所以池塘划了一条线：
             </p>
             <div className="mt-8">
               <StanceComparison />
@@ -143,8 +141,7 @@ export default function Home() {
             </h2>
             <figure className="mt-6 max-w-2xl border-l-2 border-accent pl-4">
               <blockquote className="font-head text-lg leading-relaxed text-ink">
-                最远的距离不是宿舍到早八教室，而是你们都对一件事感兴趣、都想组队，
-                但没有一个人先问一句「要不要一起」。
+                最远的距离不是宿舍到早八教室，而是你们都对一件事感兴趣、都想组队，但没有一个人先问一句「要不要一起」。
               </blockquote>
               <figcaption className="mark mt-2 text-ink-soft">
                 这就是池塘要解决的那一件事
@@ -160,31 +157,29 @@ export default function Home() {
         <section id="forest" className="border-b border-border bg-surface-alt">
           <div className="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
             <SectionEyebrow n="04" label="我的森林" />
-            <div className="mt-3 grid gap-8 md:grid-cols-2 md:gap-14">
-              <h2 className="font-head text-2xl leading-snug font-semibold text-ink sm:text-3xl">
-                你的画像，不是你声称喜欢什么，
-                <br className="hidden sm:block" />
-                是你真正和别人完成过什么
-              </h2>
+            <div className="mt-3 grid gap-10 md:grid-cols-2 md:gap-14">
+              <div>
+                <h2 className="font-head text-2xl leading-snug font-semibold text-ink sm:text-3xl">
+                  你的画像，不是你声称喜欢什么，是你真正和别人完成过什么
+                </h2>
+                {/* 图放在标题正下方而不是整段之后：这排植物就是上面那句话的证据，
+                    隔着一整段文字才出现的证据，说服力会被稀释掉。 */}
+                <div className="mt-8 border-t border-border pt-6">
+                  <p className="mark mb-4 text-ink-soft">一片森林 · 示例</p>
+                  <ForestBand plants={SAMPLE_FOREST} className="gap-x-1 gap-y-6" />
+                </div>
+              </div>
               <div className="flex flex-col gap-4 text-sm leading-relaxed text-ink-muted sm:text-base">
                 <p>
-                  注册的时候不用先编一份自我介绍。你先做了几件事，画像才自己长出来——
-                  系统按运动、学术、手艺这类领域，把你去过的地方拼成一张张「切面」，
-                  而不是一份写死的简历。
+                  注册的时候不用先编一份自我介绍。你先做了几件事，画像才自己长出来——系统按运动、学术、手艺这类领域，把你去过的地方拼成一张张「切面」，而不是一份写死的简历。
                 </p>
                 <p>
-                  每一条切面都能点回它的依据：具体是哪几株植物长出了这句话。
-                  你能改可见度、也能删。
+                  每一条切面都能点回它的依据：具体是哪几株植物长出了这句话。你能改可见度、也能删。
                 </p>
                 <p className="border-l-2 border-seal pl-4 text-ink">
                   你没发生过的事，不算数；一时兴起没成行的念头，也不会被算进「你是谁」。
                 </p>
               </div>
-            </div>
-
-            <div className="mt-12 border-t border-border pt-8">
-              <p className="mark mb-4 text-ink-soft">一片森林 · 示例</p>
-              <ForestBand plants={SAMPLE_FOREST} className="gap-x-2 gap-y-6" />
             </div>
           </div>
         </section>
