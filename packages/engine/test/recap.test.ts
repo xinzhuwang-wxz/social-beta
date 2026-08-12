@@ -26,7 +26,9 @@ async function poolThatHappened(ctx: TestContext) {
   await ctx.engine.postMessage(a.actor, poolId, '六点北宫门集合，我带绳子')
   await ctx.engine.postMessage(b.actor, poolId, '好，我带相机。回来顺路去大觉寺看看？')
   await ctx.engine.postMessage(a.actor, poolId, '这次来不及了，下次专门去一趟')
+  // 完成需要全员确认（S19）：两边都点了才真的转 done
   await ctx.engine.finishEvent(a.actor, poolId)
+  await ctx.engine.finishEvent(b.actor, poolId)
   return { a, b, poolId }
 }
 

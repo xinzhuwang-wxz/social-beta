@@ -1,0 +1,4 @@
+{
+  "type": "json",
+  "value": "{\"picks\":[{\"index\":1,\"reason\":\"You want to go mountain climbing on Saturday, preferably a wild line, and candidate 1 wants to go mountain climbing on a wild line on weekends, aligning with your hiking need.\"},{\"index\":2,\"reason\":\"Your plan is to climb a mountain on Saturday via a wild line, and candidate 2 wishes to go mountain climbing on a wild line on weekends, making for a good match.\"},{\"index\":3,\"reason\":\"You want to climb a mountain on Saturday using a wild line, and candidate 3 wants to go mountain climbing on a wild line on weekends, fitting your preference.\"},{\"index\":4,\"reason\":\"You intend to climb a mountain on Saturday with a wild line, and candidate 4 wants to go mountain climbing on a wild line on weekends, so you can coordinate this.\"}]}"
+}

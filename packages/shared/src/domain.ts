@@ -44,12 +44,22 @@ export const DOMAIN_LABEL: Record<Domain, string> = {
  * 池塘种类。四种共用一张表、一套状态机（PRD ID-1）。
  *
  * dyad 退化后恰好是抖音小火人 —— 本模型是它的严格超集，不是另一个东西。
+ *
+ * ## 当前只有 activity 真正被创建
+ *
+ * `intent`：设计上保留，但意图阶段从一开始就走独立的 `intent` 表
+ * （见 intent-service / 广场 `intent_read_board` 策略），不会、也不需要
+ * 被写成一行 `pool`。`crew`、`dyad` 是 M6 才会落地的范围，目前全仓没有
+ * 任何一条 `insert into pool` 会用到这两个值。别看到这三个枚举值就假设
+ * 已经有对应的写路径或读策略在服务它们（S16 架构审查曾经因此在
+ * `pool_read` 里留过一条永远不会被满足的策略分支，见对应 migration）——
+ * 真正落地时，连同它们各自需要的写路径与 RLS 策略一起加。
  */
 export const PoolKind = z.enum([
-  'intent', // 意图池：还没成行
-  'activity', // 具体事件：已成行
-  'crew', // 长期社群：从多次 activity 沉淀
-  'dyad', // 双人关系池：小火人的载体
+  'intent', // 意图池：还没成行（当前未被创建，见上）
+  'activity', // 具体事件：已成行（当前唯一真正被创建的值）
+  'crew', // 长期社群：从多次 activity 沉淀（M6 范围，当前未被创建）
+  'dyad', // 双人关系池：小火人的载体（M6 范围，当前未被创建）
 ])
 export type PoolKind = z.infer<typeof PoolKind>
 

@@ -1,0 +1,4 @@
+{
+  "type": "json",
+  "value": "{\"picks\": [{\"index\": 1, \"reason\": \"Your intent is to go mountain climbing on weekend with wild line, and Candidate 1's intent is to go mountain climbing on weekend with wild line.\"}, {\"index\": 2, \"reason\": \"Your intent is to go mountain climbing on weekend with wild line, and Candidate 2's intent is to go mountain climbing on weekend with wild line.\"}, {\"index\": 3, \"reason\": \"Your intent is to go mountain climbing on weekend with wild line, and Candidate 3's intent matches yours.\"}, {\"index\": 4, \"reason\": \"Your intent is to go mountain climbing on weekend with wild line, and Candidate 4 shares the same intent.\"}, {\"index\": 5, \"reason\": \"Your intent is to go mountain climbing on weekend with wild line, and Candidate 5 has the same goal.\"}]}"
+}

@@ -72,6 +72,20 @@ import {
   type InboxItem,
   type WillingCandidate,
 } from './delivery-service'
+import {
+  blockPerson,
+  myBlocks,
+  unblockPerson,
+  type BlockView,
+} from './block-service'
+import {
+  confirmCompletion,
+  myForestRecaps,
+  readCompletionStatus,
+  withdrawCompletion,
+  type CompletionStatus,
+  type ForestRecapEntry,
+} from './completion-service'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。
@@ -644,36 +658,92 @@ export class PoolEngine {
     })
   }
 
-  /** 事件成行结束。转 done，等待回流。 */
-  async finishEvent(actor: ActorContext, poolId: string): Promise<void> {
+  /**
+   * 确认事件已完成。
+   *
+   * 此前是一个成员点了就转 done。现在改成记录「我的确认」——
+   * 全员（在册成员）都确认过，池塘才真的转 done，一方没确认就停在
+   * 「等待对方确认」，不会被单方面推进。见 `completionStatus` 查询这一状态。
+   */
+  async finishEvent(actor: ActorContext, poolId: string): Promise<{ allConfirmed: boolean }> {
     const me = await this.currentPerson(actor)
     if (!me) throw new Error('尚未建档')
-    await this.asSystem(async (tx) => {
-      const [m] = await tx<{ state: string }[]>`
-        select state from membership where pool_id = ${poolId} and person_id = ${me.id}
-      `
-      if (m?.state !== 'joined') throw new Error('不是这个池塘的成员')
-      await tx`update pool set state = 'done', occurred_at = coalesce(occurred_at, now()) where id = ${poolId}`
+    await this.assertMember(me.id, poolId)
+    return this.asSystem((tx) => confirmCompletion(tx, poolId, me.id))
+  }
+
+  /**
+   * 撤回完成确认。
+   *
+   * 实际没办完时的出口：点错了、活动被取消了，撤回自己那一条确认，
+   * 池塘留在原状态，讨论、改计划都能接着来。全员都确认过、已经转 done
+   * 之后就不能再撤——那是共同事实，不是任何单方能单独推翻的。
+   */
+  async withdrawCompletion(actor: ActorContext, poolId: string): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.assertMember(me.id, poolId)
+    await this.asSystem((tx) => withdrawCompletion(tx, poolId, me.id))
+  }
+
+  /** 完成确认的进度：谁点了、谁还没。「等待对方确认」这句话的数据来源。 */
+  async completionStatus(actor: ActorContext, poolId: string): Promise<CompletionStatus> {
+    return this.act(actor, (tx) => readCompletionStatus(tx, poolId))
+  }
+
+  /**
+   * 留一条私密评价。轻到能顺手填完 —— 填不了的反馈等于没有反馈。
+   *
+   * 只有事件被全员确认完成（pool.state 已经是 done/dormant）才谈得上评价——
+   * 直接借这一条状态机约束当门槛，不用另开一张「能不能评价」的判断表。
+   * again 是唯一必填项：它既是私密反馈的核心，也是共同回忆双向门控的开关——
+   * 见 `forest_recap` 视图，任一方填 'no' 都会让对外可见的那份共同回忆消失，
+   * 且不会让对方知道是谁填的。
+   */
+  async giveFeedback(
+    actor: ActorContext,
+    poolId: string,
+    input: { again: 'yes' | 'maybe' | 'no'; note?: string; reflection?: string; photoUri?: string },
+  ): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.assertMember(me.id, poolId)
+    await this.act(actor, async (tx) => {
+      const [pool] = await tx<{ state: string }[]>`select state from pool where id = ${poolId}`
+      if (!pool || !['done', 'dormant'].includes(pool.state)) {
+        throw new Error('事情还没被双方确认完成，还不能评价')
+      }
       await tx`
-        insert into episode (pool_id, kind, summary, actor_id)
-        values (${poolId}, 'happened', '事情办完了', ${me.id})
+        insert into feedback (pool_id, person_id, again, note, reflection, photo_uri)
+        values (${poolId}, ${me.id}, ${input.again}, ${input.note ?? null},
+                ${input.reflection ?? null}, ${input.photoUri ?? null})
+        on conflict (pool_id, person_id) do update
+          set again = excluded.again, note = excluded.note,
+              reflection = excluded.reflection, photo_uri = excluded.photo_uri
       `
     })
   }
 
-  /** 留一条反馈。轻到能顺手填完 —— 填不了的反馈等于没有反馈。 */
-  async giveFeedback(
-    actor: ActorContext,
-    poolId: string,
-    input: { again: 'yes' | 'maybe' | 'no'; note?: string },
-  ): Promise<void> {
+  /**
+   * 森林里对外可见的共同回忆。走 `forest_recap` 视图——
+   * 双向门控在视图的 where 子句里兑现，这里不重复判断。
+   */
+  async myForestRecaps(actor: ActorContext): Promise<ForestRecapEntry[]> {
+    return this.act(actor, (tx) => myForestRecaps(tx))
+  }
+
+  /**
+   * 删除自己上传的回流物。管得了自己传的，改不了对方传的——
+   * 由 RLS 的 delete-own 策略兜底，这里的零行检查只是给一个更清楚的报错。
+   */
+  async removeArtifact(actor: ActorContext, artifactId: string): Promise<void> {
     const me = await this.currentPerson(actor)
     if (!me) throw new Error('尚未建档')
-    await this.act(actor, (tx) => tx`
-      insert into feedback (pool_id, person_id, again, note)
-      values (${poolId}, ${me.id}, ${input.again}, ${input.note ?? null})
-      on conflict (pool_id, person_id) do update set again = excluded.again, note = excluded.note
-    `)
+    const rows = await this.act(
+      actor,
+      (tx) => tx`delete from artifact where id = ${artifactId} returning id`,
+    )
+    if (rows.length === 0) throw new Error('回流物不存在，或不是你上传的')
   }
 
   /**
@@ -1263,6 +1333,37 @@ export class PoolEngine {
   async ping(): Promise<{ db: boolean; model: ModelGateway['info'] }> {
     const rows = await this.deps.sql<{ ok: number }[]>`select 1 as ok`
     return { db: rows[0]?.ok === 1, model: this.deps.model.info }
+  }
+
+  // ==========================================================
+  // 拉黑：退出的权利
+  // ==========================================================
+
+  /**
+   * 拉黑一个人。
+   *
+   * 硬过滤（matcher-service 召回阶段的双向 not exists）此前一直守着一扇
+   * 没有门把手的门 —— block 表有 RLS、有 GRANT，但没有任何写路径。
+   * 这一步补的正是那个门把手，判断「能不能拉黑」的事完全交给 block_own 策略。
+   */
+  async blockPerson(actor: ActorContext, blockedId: string): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.act(actor, (tx) => blockPerson(tx, me.id, blockedId))
+  }
+
+  /** 取消拉黑。 */
+  async unblockPerson(actor: ActorContext, blockedId: string): Promise<void> {
+    const me = await this.currentPerson(actor)
+    if (!me) throw new Error('尚未建档')
+    await this.act(actor, (tx) => unblockPerson(tx, me.id, blockedId))
+  }
+
+  /** 我拉黑过的人。能拉黑就必须能看见、能撤销，否则拉黑是个只进不出的黑洞。 */
+  async myBlocks(actor: ActorContext): Promise<BlockView[]> {
+    const me = await this.currentPerson(actor)
+    if (!me) return []
+    return this.act(actor, (tx) => myBlocks(tx, me.id))
   }
 }
 

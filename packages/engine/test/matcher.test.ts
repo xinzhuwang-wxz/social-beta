@@ -170,3 +170,91 @@ describe('匹配漏斗', () => {
     })
   })
 })
+
+describe('换一批：真的换', () => {
+  it('连续两次生成的候选不重叠 —— 历史批次露过脸的人在候选阶段就该出局', async () => {
+    await withCampus(async (ctx) => {
+      const seeker = await ctx.makePerson('反复刷新的人')
+
+      // 十个候选，让候选池比一批的容量（3~5 人）宽裕不少，否则第二批无人可换。
+      // 直接落库、复用同一份 embedding，不走 publishIntent —— 这条用例要测的
+      // 是候选阶段的排除逻辑，不是意图分类，让十个陪衬人各跑一遍 domain 抽取
+      // 只是烧钱不加信息（DAILY_EXPOSURE_CAP 那条用例也是这么做的）。
+      const [emb] = await ctx.engine.model.embed(['周末想去爬山，走野线那种'])
+      for (let i = 0; i < 10; i++) {
+        const p = await ctx.makePerson(`陪跑${i}`)
+        await ctx.sql`
+          insert into intent (person_id, raw_text, domain, campus_id, expires_at, embedding, scope)
+          values (${p.personId}, ${'周末想去爬山走野线，第' + i + '种说法'}, 'sport',
+                  ${ctx.campusId}, now() + interval '3 days',
+                  ${'[' + emb!.join(',') + ']'}::vector, 'campus')
+        `
+      }
+
+      const mine = await ctx.engine.publishIntent(seeker.actor, '周六想爬山，最好是野线', {
+        scope: 'campus',
+      })
+
+      const first = await ctx.engine.refreshCandidates(seeker.actor, mine.id)
+      const second = await ctx.engine.refreshCandidates(seeker.actor, mine.id)
+
+      expect(first.length).toBeGreaterThan(0)
+      expect(second.length).toBeGreaterThan(0)
+
+      const firstIds = new Set(first.map((c) => c.personId))
+      const overlap = second.filter((c) => firstIds.has(c.personId))
+      // 硬排除：第二批不该出现任何第一批露过脸的人
+      expect(overlap.length).toBe(0)
+    })
+  })
+})
+
+describe('拉黑：给硬过滤配一扇有门把手的门', () => {
+  /**
+   * block 表、block_own 策略、GRANT 从 M2 就在，「被拉黑者绝不出现」那条用例
+   * 也一直在验证硬过滤本身生效 —— 但此前用的是直接 `insert into block`，
+   * 从没有验证过用户自己能不能真的拉黑一个人。这里补的是那条创建路径本身：
+   * blockPerson / myBlocks / unblockPerson 三个方法，以及它们对匹配结果的
+   * 真实影响。
+   */
+  it('blockPerson 创建的关系立刻在漏斗里生效，myBlocks 能看到，unblockPerson 能撤销', async () => {
+    await withCampus(async (ctx) => {
+      const seeker = await ctx.makePerson('拉黑发起人')
+      const target = await ctx.makePerson('将被拉黑的人')
+      await ctx.engine.publishIntent(target.actor, '周末想去爬山走野线')
+
+      await ctx.engine.blockPerson(seeker.actor, target.personId)
+      const blocks = await ctx.engine.myBlocks(seeker.actor)
+      expect(blocks.map((b) => b.personId)).toEqual([target.personId])
+
+      const mine = await ctx.engine.publishIntent(seeker.actor, '周六想爬山，最好是野线')
+      const candidates = await ctx.engine.refreshCandidates(seeker.actor, mine.id)
+      expect(candidates.some((c) => c.personId === target.personId)).toBe(false)
+
+      // 重复拉黑是幂等的，不是错误 —— 用户不需要先知道自己拉黑没拉黑过
+      await expect(ctx.engine.blockPerson(seeker.actor, target.personId)).resolves.not.toThrow()
+
+      await ctx.engine.unblockPerson(seeker.actor, target.personId)
+      expect(await ctx.engine.myBlocks(seeker.actor)).toEqual([])
+    })
+  })
+
+  it('不能拉黑自己', async () => {
+    await withCampus(async (ctx) => {
+      const me = await ctx.makePerson('自己')
+      await expect(ctx.engine.blockPerson(me.actor, me.personId)).rejects.toThrow(/自己/)
+    })
+  })
+
+  it('看不到别人的拉黑名单 —— myBlocks 只走 RLS，不是应用层按 id 过滤', async () => {
+    await withCampus(async (ctx) => {
+      const seeker = await ctx.makePerson('甲')
+      const target = await ctx.makePerson('乙')
+      const bystander = await ctx.makePerson('围观的人')
+      await ctx.engine.blockPerson(seeker.actor, target.personId)
+
+      // 旁观者调用同一个方法，RLS 按 current_person_id() 裁剪，看到的应该是空
+      expect(await ctx.engine.myBlocks(bystander.actor)).toEqual([])
+    })
+  })
+})

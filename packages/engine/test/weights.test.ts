@@ -29,7 +29,9 @@ async function completeOne(
   await ctx.engine.confirmJoin(b.actor, poolId)
   await ctx.engine.postMessage(a.actor, poolId, '六点集合')
   await ctx.engine.postMessage(b.actor, poolId, '好')
+  // 完成需要全员确认（S19）：两边都点了才真的转 done
   await ctx.engine.finishEvent(a.actor, poolId)
+  await ctx.engine.finishEvent(b.actor, poolId)
   await ctx.engine.sealPool(a.actor, poolId)
   await ctx.engine.distillAfterPool(poolId)
   return poolId

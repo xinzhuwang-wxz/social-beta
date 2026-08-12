@@ -1,3 +1,4 @@
+import { DOMAINS } from '@pool/shared'
 import { describe, expect, it } from 'vitest'
 import { createTestContext, type TestContext } from './harness'
 
@@ -26,7 +27,9 @@ async function completedPool(ctx: TestContext, texts: [string, string]) {
   await ctx.engine.confirmJoin(b.actor, poolId)
   await ctx.engine.postMessage(a.actor, poolId, '六点北宫门集合，我带绳子')
   await ctx.engine.postMessage(b.actor, poolId, '好，我带相机')
+  // 完成需要全员确认（S19）：两边都点了才真的转 done
   await ctx.engine.finishEvent(a.actor, poolId)
+  await ctx.engine.finishEvent(b.actor, poolId)
   await ctx.engine.addArtifact(a.actor, poolId, {
     kind: 'photo',
     uri: 'https://example.invalid/1.jpg',
@@ -213,6 +216,78 @@ describe('L2 全删后从 L1 重建，结果等价', () => {
       const timeline = await ctx.engine.poolTimeline(a.actor, poolId)
       expect(timeline.length).toBeGreaterThan(0)
       expect(timeline.some((e) => e.kind === 'recap')).toBe(true)
+    } finally {
+      await ctx.cleanup()
+    }
+  })
+})
+
+describe('增量蒸馏与全量重建的等价性：跨领域缺口', () => {
+  /**
+   * S16 架构审查 P3：`distillAfterPool` 把 scope 限定为本池塘的 domain，
+   * 而 `rebuildL2` 不限 domain；`distillPerson` 的证据查询此前含
+   * `p.state in ('active','done','dormant')`。
+   *
+   * 一个人若同时在 A 域的「进行中」（active，已成行但未收尾）池塘和
+   * B 域的「已收尾」（done → dormant）池塘里：B 收尾触发的增量只会重蒸
+   * B（scope=[B 的 domain]），而全量对同一个人不带 onlyDomains 限制，
+   * A 域此前也会一并被算进去 —— 增量产出 {B}，全量产出 {A, B}，两条路径
+   * 不再等价。
+   *
+   * 收敛方式：让 A 域池塘「进行中未收尾」这件事本身就没有资格成为证据 ——
+   * 见 distiller-service.ts 里 `distillPerson` 的证据查询，state 口径从
+   * `active,done,dormant` 收紧到 `done,dormant`。收紧之后，全量重建对
+   * 这个人调用 distillPerson 时，A 域的 active 池塘从一开始就不会出现在
+   * 证据集合里，不需要 onlyDomains 过滤就已经产不出 A 域的画像 ——
+   * 增量与全量因此在证据口径上天然一致，而不是各自维护一份「该不该算」
+   * 的判断。
+   */
+  it('一人同时在"进行中未收尾"的 A 域池塘与"已收尾"的 B 域池塘里，增量与全量对该人产出的画像领域集合必须一致', async () => {
+    const ctx = await createTestContext()
+    try {
+      const { a, poolId: poolB } = await completedPool(ctx, [
+        '周六想去爬山，最好野线',
+        '周末想徒步，走没开发的路线',
+      ])
+      const [domRow] = await ctx.sql<{ domain: string | null }[]>`
+        select domain from pool where id = ${poolB}
+      `
+      const domB = domRow?.domain ?? 'other'
+      // 挑一个跟 B 不同的领域，不赌模型分类 —— 这条用例要测的是 SQL 层的
+      // 证据口径，不是意图分类的准确度
+      const domA = DOMAINS.find((d) => d !== domB) ?? 'other'
+
+      // A 域池塘：直接落在 'active'（已成行、进行中，尚未收尾）。
+      // 当前产品里没有任何写路径能把池塘自然推进到这个状态——见
+      // seam.test.ts 对状态机的验收，这里跟它一样直接用原始 SQL 造数据，
+      // 模拟这个真实存在、但眼下无路可达的中间态。
+      const [poolARow] = await ctx.sql<{ id: string }[]>`
+        insert into pool (kind, state, campus_id, domain, title)
+        values ('activity', 'active', ${ctx.campusId}, ${domA}, 'A 域·进行中')
+        returning id
+      `
+      const poolA = poolARow!.id
+      await ctx.sql`
+        insert into membership (pool_id, person_id, role, state)
+        values (${poolA}, ${a.personId}, 'participant', 'joined')
+      `
+
+      // 增量：只对刚收尾的 B 池塘触发蒸馏
+      await ctx.engine.distillAfterPool(poolB)
+      const incremental = await ctx.sql<{ domain: string }[]>`
+        select domain from facet where person_id = ${a.personId} order by domain
+      `
+      expect(incremental.map((f) => f.domain)).toEqual([domB])
+
+      await ctx.engine.wipeL2(ctx.campusId)
+      await ctx.engine.rebuildL2(ctx.campusId)
+      const full = await ctx.sql<{ domain: string }[]>`
+        select domain from facet where person_id = ${a.personId} order by domain
+      `
+
+      // 核心断言：A 域的池塘还「进行中」，没有资格进入任何人的长期表示 ——
+      // 全量重建不该比增量多算出一个 A 域的画像。
+      expect(full.map((f) => f.domain)).toEqual(incremental.map((f) => f.domain))
     } finally {
       await ctx.cleanup()
     }

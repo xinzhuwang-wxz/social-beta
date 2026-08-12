@@ -204,7 +204,9 @@ describe('越权：注释描述的约束必须真的存在', () => {
     })
     await ctx.engine.confirmJoin(candidate.actor, poolId)
     await ctx.engine.postMessage(seeker.actor, poolId, '几点')
+    // 完成需要全员确认（S19）：两边都点了才真的转 done
     await ctx.engine.finishEvent(seeker.actor, poolId)
+    await ctx.engine.finishEvent(candidate.actor, poolId)
 
     const outsider = await ctx.makePerson('局外人')
     // 收尾会触发真实模型调用并改写 next_hook 与状态。
@@ -220,7 +222,9 @@ describe('越权：注释描述的约束必须真的存在', () => {
     })
     await ctx.engine.confirmJoin(candidate.actor, poolId)
     await ctx.engine.postMessage(seeker.actor, poolId, '六点集合')
+    // 完成需要全员确认（S19）：两边都点了才真的转 done
     await ctx.engine.finishEvent(seeker.actor, poolId)
+    await ctx.engine.finishEvent(candidate.actor, poolId)
     await ctx.engine.sealPool(seeker.actor, poolId)
     await ctx.sql`update pool set next_hook_due_at = now() - interval '1 day' where id = ${poolId}`
 

@@ -24,6 +24,23 @@ import { z } from 'zod'
  * 「等价」指结构等价：同样的 (人, 领域) 组合、同样的证据池塘集合、同样的 n_pools、
  * 数值一致的关系温度。**不包括摘要文本逐字相同** —— 那是模型输出，
  * 断言它逐字可复现等于断言模型是确定性的，那样的测试就成了抽奖。
+ *
+ * ## 增量（distillAfterPool）与全量（rebuildL2）的口径必须一致
+ *
+ * 增量只重蒸「刚收尾的那个池塘所属的 domain」（省钱，见下面 `distillPerson`
+ * 的 `onlyDomains` 参数），全量对每个人不带这个限制，处理证据里出现的全部
+ * domain。如果两者对「一个池塘算不算数」的判断标准不一样，就会出现
+ * S16 架构审查抓到的那个洞：一个人同时在 A 域一个「进行中但未收尾」
+ * （state='active'）的池塘和 B 域一个已收尾的池塘里，增量（因 B 收尾触发）
+ * 只产出 B 的画像，全量却会把 A 也算进去 —— 因为当时证据查询对 A、B 一视同仁，
+ * 只有 onlyDomains 在拦，而全量根本不传这个参数。
+ *
+ * 收敛方式是让「进行中未收尾」的池塘从一开始就没有资格成为证据（见下面
+ * `PoolEvidence` 查询的 state 过滤）。这样一来，无论调用方传不传
+ * onlyDomains、这个人身上挂了几个 active 池塘，`distillPerson` 能看到的
+ * domain 集合本身就已经跟「已收尾」的池塘一一对应 —— 增量与全量因此在
+ * 证据口径上天然相等，而不是靠两处各自维护一份「该不该算」的判断、
+ * 指望它们碰巧写得一样。
  */
 
 const FACET_SYSTEM = `你从一个人参与过的活动里，总结他在某个生活领域的侧写。
@@ -76,7 +93,12 @@ export async function distillPerson(
     from membership m join pool p on p.id = m.pool_id
     where m.person_id = ${personId}
       and m.state = 'joined'
-      and p.state in ('active','done','dormant')
+      -- 只认「已收尾」的池塘（done 或休眠后的 dormant）。'active' 是「已成行、
+      -- 进行中但还没收尾」——排除它不是随便收紧：增量蒸馏只在收尾这个收敛点
+      -- 触发，一个还在进行中的池塘永远等不到属于它自己的那次触发。若这里仍
+      -- 把 active 算作证据，全量重建就会替它算出一份增量永远不会产生的画像，
+      -- 见文件顶部「增量与全量的口径必须一致」。
+      and p.state in ('done','dormant')
     order by p.id
   `
   if (evidence.length === 0) return 0
@@ -154,6 +176,12 @@ export async function recomputeRelations(sql: Sql, personId: string): Promise<nu
     join membership m2 on m2.pool_id = p.id and m2.person_id <> m1.person_id
     where m1.person_id = ${personId}
       and m1.state = 'joined' and m2.state = 'joined'
+      -- 这里刻意保留 'active'，跟上面 distillPerson 的证据口径不对称：
+      -- 关系温度回答的是「跟这个人共同在忙一件事到什么程度」，一起在进行中的
+      -- 池塘里就是正在共处，本身就是加热的信号，不需要等它收尾才算数。
+      -- facet 回答的是「系统能不能对外描述你干过什么」，那需要一件事真的
+      -- 收了尾、有 recap 可引 —— 两者对「进行中」这件事的态度本来就不同，
+      -- 不是遗漏对齐，是各自的问题决定各自的口径。
       and p.state in ('active','done','dormant')
     group by m2.person_id
   `

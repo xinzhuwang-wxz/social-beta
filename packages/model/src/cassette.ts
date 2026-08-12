@@ -41,7 +41,7 @@ export class Cassette {
     if (this.config.mode === 'replay') {
       throw new Error(
         `cassette 缺条目：${task}\n  期望路径：${path}\n` +
-          `  replay 模式不会联网。请在本地以 MODEL_CASSETTE_MODE=record 跑一次以录制。`,
+          `  replay 模式不会联网。请在本地以 TEST_CASSETTE_MODE=record 跑一次以录制。`,
       )
     }
 

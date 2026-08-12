@@ -120,6 +120,27 @@ function timeAffinity(mine: string | null, theirs: string | null): number | null
   return hit / (a.size + b.size - hit)
 }
 
+/**
+ * 这条意图历史批次里已经出现过的人。
+ *
+ * 「换一批」此前只把曝光惩罚从 0 提到 0.025（`DAILY_EXPOSURE_CAP` 里的一次曝光）——
+ * 候选池不大时这点分差冲不动排序，用户点完「换一批」看到的基本还是同一拨人，
+ * 于是这个按钮名不副实。真正的「换」必须让历史批次露过脸的人在候选阶段
+ * 就出局，而不是指望一个小惩罚把他们挤到榜单外面。
+ *
+ * 查 `candidate_set` 而不是 `exposure`：曝光记录的是「系统给谁看过谁」，
+ * 覆盖所有意图；这里要的是「这条意图自己的历史批次给这个人看过谁」，
+ * 范围更窄也更准确 —— 换一条新意图不该继承旧意图排除过的人。
+ */
+async function previouslyShown(sql: Sql, intentId: string): Promise<Set<string>> {
+  const rows = await sql<{ personId: string }[]>`
+    select distinct (elem ->> 'personId') as "personId"
+    from candidate_set cs, jsonb_array_elements(cs.candidates) as elem
+    where cs.intent_id = ${intentId}
+  `
+  return new Set(rows.map((r) => r.personId))
+}
+
 /** 我在该领域承担过的角色，用于算互补性 */
 interface SeekerProfile {
   personId: string
@@ -237,7 +258,15 @@ async function recall(
         where (b.blocker_id = ${seekerId} and b.blocked_id = i.person_id)
            or (b.blocker_id = i.person_id and b.blocked_id = ${seekerId})
       )
-    order by i.embedding <=> ${toVector(embedding)}::vector
+    -- 决胜键按**内容**排，不按 id。
+    --
+    -- 向量距离相等时（同校区里措辞相近的意图很容易打平），Postgres 返回的
+    -- 顺序是任意的，而这个顺序会一路流进终排 prompt 的候选清单 ——
+    -- 同一份数据每次跑生成不同的 prompt，排序不可复现。
+    --
+    -- 不能拿 i.id 决胜：主键是随机 UUID，只能保证同一次运行内稳定，
+    -- 跨运行照样随机。按 raw_text 决胜才是「相同输入永远相同输出」。
+    order by i.embedding <=> ${toVector(embedding)}::vector, i.raw_text, i.person_id
     limit ${RECALL_LIMIT}
   `
 }
@@ -450,12 +479,19 @@ export async function findCandidates(
   }
 
   const recalled = await recall(deps.sql, profile, intent.domain, embedding)
+  const seen = await previouslyShown(deps.sql, intent.id)
   const weights = WEIGHTS[stageFor(seeker.poolCount)]
 
   const shortlist = recalled
     .filter((r) => r.exposureToday < DAILY_EXPOSURE_CAP)
+    // 「换一批」在 shortlist 阶段就把历史批次出现过的人排除掉，
+    // 而不是靠曝光惩罚慢慢把他们挤下去
+    .filter((r) => !seen.has(r.personId))
     .map((r) => ({ ...r, score: score(r, profile, weights) }))
-    .sort((a, b) => b.score.total - a.score.total)
+    // 同上：总分打平时按意图原文决胜。不用 intentId —— 那是随机 UUID，
+    // 跨运行不稳定，而 Array.prototype.sort 对等值元素保持输入顺序，
+    // 于是不稳定会原样传下去。
+    .sort((a, b) => b.score.total - a.score.total || (a.rawText < b.rawText ? -1 : 1))
     .slice(0, RERANK_LIMIT)
 
   const candidates = await finalRank(deps.model, intent.rawText, shortlist)
