@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createTestContext, type TestContext } from './harness.js'
+import { createTestContext, type TestContext } from './harness'
 
 /**
  * S2 · 发意图 → 意图广场的验收。

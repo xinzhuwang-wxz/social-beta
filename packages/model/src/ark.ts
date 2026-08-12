@@ -1,4 +1,4 @@
-import { ModelGatewayError, type CompleteRequest, type ImageRequest, type ImageResult, type Tier } from './types.js'
+import { ModelGatewayError, type CompleteRequest, type ImageRequest, type ImageResult, type Tier } from './types'
 
 /**
  * 火山方舟客户端。方舟与 OpenAI 协议兼容，所以这里不引 SDK ——

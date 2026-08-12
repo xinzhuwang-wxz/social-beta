@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { ArkClient, completeMessages, type ArkConfig } from './ark.js'
-import { Cassette, type CassetteMode } from './cassette.js'
-import { OllamaEmbedder, type OllamaConfig } from './ollama.js'
+import { ArkClient, completeMessages, type ArkConfig } from './ark'
+import { Cassette, type CassetteMode } from './cassette'
+import { OllamaEmbedder, type OllamaConfig } from './ollama'
 import {
   ModelGatewayError,
   type CompleteRequest,
@@ -10,10 +10,10 @@ import {
   type ImageRequest,
   type ImageResult,
   type ModelGateway,
-} from './types.js'
+} from './types'
 
-export * from './types.js'
-export { Cassette } from './cassette.js'
+export * from './types'
+export { Cassette } from './cassette'
 
 class DefaultModelGateway implements ModelGateway {
   readonly info: GatewayInfo

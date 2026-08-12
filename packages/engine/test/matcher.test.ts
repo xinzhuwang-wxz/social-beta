@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { DAILY_EXPOSURE_CAP, stageFor } from '../src/matcher-service.js'
-import { createTestContext, type TestContext } from './harness.js'
+import { DAILY_EXPOSURE_CAP, stageFor } from '../src/matcher-service'
+import { createTestContext, type TestContext } from './harness'
 
 /**
  * S3 · 匹配四段漏斗的验收。

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { createModelGateway, type ModelGateway } from '../src/index.js'
+import { createModelGateway, type ModelGateway } from '../src/index'
 
 /**
  * ModelGateway 的真实调用验收。

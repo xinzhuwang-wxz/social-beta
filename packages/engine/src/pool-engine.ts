@@ -9,15 +9,15 @@ import {
   type BoardItem,
   type IntentRecord,
   type PreparedIntent,
-} from './intent-service.js'
-import { findCandidates, type Candidate } from './matcher-service.js'
-import { disclosureProfileFor, rehearse, type RehearsalResult } from './rehearsal-service.js'
+} from './intent-service'
+import { findCandidates, type Candidate } from './matcher-service'
+import { disclosureProfileFor, rehearse, type RehearsalResult } from './rehearsal-service'
 import {
   confirmJoin,
   leavePool,
   takeOver,
   type RehearsalRecord,
-} from './takeover-service.js'
+} from './takeover-service'
 
 /**
  * PoolEngine —— 本仓库唯一的业务门面，也是唯一的测试缝。

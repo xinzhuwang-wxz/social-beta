@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Domain, PoolRole, Visibility } from './domain.js'
+import { Domain, PoolRole, Visibility } from './domain'
 
 /**
  * 可披露切面 —— Agent 在预演中能看到的全部内容。

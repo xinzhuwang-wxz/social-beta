@@ -1,4 +1,4 @@
-import { ModelGatewayError } from './types.js'
+import { ModelGatewayError } from './types'
 
 /**
  * 本地 Ollama embedding。

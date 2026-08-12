@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createTestContext, type TestContext } from './harness.js'
+import { createTestContext, type TestContext } from './harness'
 
 /**
  * S1 剩余两条验收标准要打的那条缝：真实登录 → 写 person、以及登录后首页

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createTestContext, type TestContext } from './harness.js'
+import { createTestContext, type TestContext } from './harness'
 
 /**
  * 四条不可协商的人类决策权。

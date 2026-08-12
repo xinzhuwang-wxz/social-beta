@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import type { PoolEngine } from '../src/index.js'
-import { createTestContext, type TestContext } from './harness.js'
+import type { PoolEngine } from '../src/index'
+import { createTestContext, type TestContext } from './harness'
 
 /**
  * 「注册不接受任何画像字段」是编译期不变量。

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Domain } from './domain.js'
+import { Domain } from './domain'
 
 /**
  * 意图槽位。由 LLM 从一句人话抽取，用户可当场逐项修正。

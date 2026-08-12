@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { PoolRole, PoolState } from './domain.js'
+import { PoolRole, PoolState } from './domain'
 
 /**
  * Agent 在池塘里的介入产物。

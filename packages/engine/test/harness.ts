@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createDb, type Sql } from '@pool/db'
 import { createModelGateway, type ModelGateway } from '@pool/model'
-import { PoolEngine, type ActorContext } from '../src/index.js'
+import { PoolEngine, type ActorContext } from '../src/index'
 
 /**
  * 测试 harness。
